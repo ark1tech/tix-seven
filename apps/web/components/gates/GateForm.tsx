@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +43,8 @@ export default function GateForm({ events }: Props) {
 
     if (!res.ok) {
       const body = await res.json();
-      setError(body.error ?? "Failed to register gate");
+      const errMsg = typeof body.error === "string" ? body.error : (body.error?.formErrors?.[0] || body.error?.message || "Failed to register gate");
+      setError(errMsg);
       setLoading(false);
       return;
     }
@@ -52,7 +53,9 @@ export default function GateForm({ events }: Props) {
     setDeviceId("");
     setEventId("unassigned");
     setLoading(false);
-    router.refresh();
+    startTransition(() => {
+      router.refresh();
+    });
   }
 
   return (
@@ -78,9 +81,9 @@ export default function GateForm({ events }: Props) {
         />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label>Assign to Event</Label>
+        <Label htmlFor="assign-event">Assign to Event</Label>
         <Select value={eventId} onValueChange={(v) => setEventId(v ?? "unassigned")}>
-          <SelectTrigger>
+          <SelectTrigger id="assign-event">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

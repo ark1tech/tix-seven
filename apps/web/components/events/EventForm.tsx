@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,14 +50,17 @@ export default function EventForm({ event }: Props) {
 
     if (!res.ok) {
       const body = await res.json();
-      setError(body.error ?? "Something went wrong");
+      const errMsg = typeof body.error === "string" ? body.error : (body.error?.formErrors?.[0] || body.error?.message || "Something went wrong");
+      setError(errMsg);
       setLoading(false);
       return;
     }
 
     const saved = await res.json();
-    router.push(`/events/${saved.id}`);
-    router.refresh();
+    startTransition(() => {
+      router.push(`/events/${saved.id}`);
+      router.refresh();
+    });
   }
 
   return (

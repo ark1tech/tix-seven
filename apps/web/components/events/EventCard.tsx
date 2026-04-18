@@ -10,7 +10,9 @@ export default function EventCard({ event }: { event: Event }) {
           <CardTitle className="text-base">{event.name}</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground flex flex-col gap-1">
-          <span>{new Date(event.date).toLocaleDateString()}</span>
+          <time suppressHydrationWarning>
+            {new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(event.date))}
+          </time>
           <span>{event.venue}</span>
           <span>Capacity: {event.capacity}</span>
         </CardContent>

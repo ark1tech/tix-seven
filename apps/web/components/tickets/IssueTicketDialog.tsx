@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -43,6 +43,7 @@ export default function IssueTicketDialog({ eventId }: Props) {
   const [scannedPayload, setScannedPayload] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
   const scannerRef = useRef<QRScanner | null>(null);
 
   useEffect(() => {
@@ -50,22 +51,23 @@ export default function IssueTicketDialog({ eventId }: Props) {
       scannerRef.current?.stop();
       scannerRef.current = null;
       setStep("scan");
+      setIsScanning(false);
       setScannedPayload(null);
       setError(null);
     }
   }, [open]);
 
-  useEffect(() => {
-    if (open && step === "scan") {
-      const scanner = createScanner();
-      scannerRef.current = scanner;
-      scanner.start((payload) => {
-        scannerRef.current?.stop();
-        setScannedPayload(payload);
-        setStep("confirm");
-      });
-    }
-  }, [open, step]);
+  function startScanner() {
+    setIsScanning(true);
+    const scanner = createScanner();
+    scannerRef.current = scanner;
+    scanner.start((payload) => {
+      scannerRef.current?.stop();
+      setIsScanning(false);
+      setScannedPayload(payload);
+      setStep("confirm");
+    });
+  }
 
   async function handleIssue() {
     if (!scannedPayload) return;
@@ -80,7 +82,8 @@ export default function IssueTicketDialog({ eventId }: Props) {
 
     if (!res.ok) {
       const body = await res.json();
-      setError(body.error ?? "Failed to issue ticket");
+      const errMsg = typeof body.error === "string" ? body.error : (body.error?.formErrors?.[0] || body.error?.message || "Failed to issue ticket");
+      setError(errMsg);
       setLoading(false);
       return;
     }
@@ -91,14 +94,14 @@ export default function IssueTicketDialog({ eventId }: Props) {
 
   function handleClose() {
     setOpen(false);
-    router.refresh();
+    startTransition(() => {
+      router.refresh();
+    });
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger>
-        <Button>Issue Ticket</Button>
-      </DialogTrigger>
+      <DialogTrigger render={<Button />}>Issue Ticket</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Issue Ticket</DialogTitle>
@@ -114,10 +117,15 @@ export default function IssueTicketDialog({ eventId }: Props) {
               className="w-full rounded-md aspect-video bg-muted"
               muted
             />
+            {!isScanning && (
+              <Button variant="secondary" onClick={startScanner}>
+                Start Scanner
+              </Button>
+            )}
             <div className="flex flex-col gap-1.5">
-              <Label>Ticket Tier</Label>
+              <Label htmlFor="ticket-tier-select">Ticket Tier</Label>
               <Select value={tier} onValueChange={(v) => setTier(v as TicketTier)}>
-                <SelectTrigger>
+                <SelectTrigger id="ticket-tier-select">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -148,7 +156,7 @@ export default function IssueTicketDialog({ eventId }: Props) {
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setStep("scan")}>
+              <Button variant="outline" onClick={() => { setStep("scan"); setIsScanning(false); }}>
                 Rescan
               </Button>
               <Button onClick={handleIssue} disabled={loading}>

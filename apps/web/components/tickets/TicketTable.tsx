@@ -47,7 +47,9 @@ export default function TicketTable({ tickets }: { tickets: Ticket[] }) {
               </Badge>
             </TableCell>
             <TableCell className="text-sm text-muted-foreground">
-              {new Date(ticket.purchase_timestamp).toLocaleString()}
+              <time suppressHydrationWarning>
+                {new Intl.DateTimeFormat(undefined, { dateStyle: "short", timeStyle: "short" }).format(new Date(ticket.purchase_timestamp))}
+              </time>
             </TableCell>
           </TableRow>
         ))}

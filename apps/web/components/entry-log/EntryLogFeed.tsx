@@ -60,7 +60,9 @@ export default function EntryLogFeed({ eventId, initialLogs, isMock }: Props) {
         {logs.map((log) => (
           <TableRow key={log.id}>
             <TableCell className="text-sm text-muted-foreground">
-              {new Date(log.timestamp).toLocaleTimeString()}
+              <time suppressHydrationWarning>
+                {new Intl.DateTimeFormat(undefined, { timeStyle: "medium" }).format(new Date(log.timestamp))}
+              </time>
             </TableCell>
             <TableCell>
               <Badge variant={log.result === "grant" ? "default" : "destructive"}>

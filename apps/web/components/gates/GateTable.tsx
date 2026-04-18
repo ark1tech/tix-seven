@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Table,
@@ -37,14 +37,19 @@ export default function GateTable({ gates, events }: Props) {
       body: JSON.stringify({ event_id: eventId }),
     });
     setLoading(null);
-    router.refresh();
+    startTransition(() => {
+      router.refresh();
+    });
   }
 
   async function handleDelete(gateId: string) {
+    if (!window.confirm("Are you sure you want to remove this gate?")) return;
     setLoading(gateId);
     await fetch(`/api/gates/${gateId}`, { method: "DELETE" });
     setLoading(null);
-    router.refresh();
+    startTransition(() => {
+      router.refresh();
+    });
   }
 
   if (gates.length === 0) {
