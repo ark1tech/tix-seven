@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { subscribeToEntryLogs } from "@/lib/db/entry-logs";
+import { subscribeToEntryLogs } from "@/lib/db/entry-logs-realtime";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,

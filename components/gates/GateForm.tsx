@@ -79,7 +79,7 @@ export default function GateForm({ events }: Props) {
       </div>
       <div className="flex flex-col gap-1.5">
         <Label>Assign to Event</Label>
-        <Select value={eventId} onValueChange={setEventId}>
+        <Select value={eventId} onValueChange={(v) => setEventId(v ?? "unassigned")}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
