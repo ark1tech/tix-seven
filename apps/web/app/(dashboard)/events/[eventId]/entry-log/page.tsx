@@ -1,5 +1,6 @@
 import { getEvent } from "@/lib/db/events";
 import { getEntryLogs } from "@/lib/db/entry-logs";
+import { isMockMode } from "@/lib/supabase/server";
 import EntryLogFeed from "@/components/entry-log/EntryLogFeed";
 
 export default async function EntryLogPage({
@@ -8,9 +9,10 @@ export default async function EntryLogPage({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-  const [event, initialLogs] = await Promise.all([
+  const [event, initialLogs, mock] = await Promise.all([
     getEvent(eventId),
     getEntryLogs(eventId),
+    isMockMode(),
   ]);
 
   return (
@@ -19,7 +21,7 @@ export default async function EntryLogPage({
         <h1 className="text-2xl font-semibold">Live Entry Log</h1>
         <p className="text-sm text-muted-foreground mt-1">{event.name}</p>
       </div>
-      <EntryLogFeed eventId={eventId} initialLogs={initialLogs} />
+      <EntryLogFeed eventId={eventId} initialLogs={initialLogs} isMock={mock} />
     </div>
   );
 }

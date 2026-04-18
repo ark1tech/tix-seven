@@ -10,17 +10,18 @@ import type { EntryLog } from "@tix-seven/types";
  */
 export function subscribeToEntryLogs(
   eventId: string,
-  onInsert: (log: EntryLog) => void
+  onInsert: (log: EntryLog) => void,
+  schema = "public"
 ): () => void {
-  const supabase = createClient();
+  const supabase = createClient(schema);
 
   const channel = supabase
-    .channel(`entry_logs:${eventId}`)
+    .channel(`entry_logs:${eventId}:${schema}`)
     .on(
       "postgres_changes",
       {
         event: "INSERT",
-        schema: "public",
+        schema,
         table: "entry_logs",
         filter: `event_id=eq.${eventId}`,
       },

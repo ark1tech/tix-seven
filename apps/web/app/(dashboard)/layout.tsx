@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, isMockMode } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import DebugOverlay from "@/components/debug/DebugOverlay";
 
 export default async function DashboardLayout({
   children,
@@ -14,6 +15,8 @@ export default async function DashboardLayout({
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  const mock = await isMockMode();
 
   return (
     <div className="flex min-h-screen">
@@ -46,6 +49,9 @@ export default async function DashboardLayout({
         </div>
       </aside>
       <main className="flex-1 p-8 overflow-auto">{children}</main>
+      {process.env.NEXT_PUBLIC_DEBUG_TOOLS === "true" && (
+        <DebugOverlay isMock={mock} />
+      )}
     </div>
   );
 }

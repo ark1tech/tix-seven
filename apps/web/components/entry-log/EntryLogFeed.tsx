@@ -23,17 +23,20 @@ const DENIAL_LABELS: Record<string, string> = {
 interface Props {
   eventId: string;
   initialLogs: EntryLog[];
+  isMock?: boolean;
 }
 
-export default function EntryLogFeed({ eventId, initialLogs }: Props) {
+export default function EntryLogFeed({ eventId, initialLogs, isMock }: Props) {
   const [logs, setLogs] = useState<EntryLog[]>(initialLogs);
 
   useEffect(() => {
-    const unsub = subscribeToEntryLogs(eventId, (newLog) => {
-      setLogs((prev) => [newLog, ...prev]);
-    });
+    const unsub = subscribeToEntryLogs(
+      eventId,
+      (newLog) => setLogs((prev) => [newLog, ...prev]),
+      isMock ? "mock" : "public"
+    );
     return unsub;
-  }, [eventId]);
+  }, [eventId, isMock]);
 
   if (logs.length === 0) {
     return (
