@@ -21,7 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { CameraAdapter } from "@/lib/qr-scanner/camera-adapter";
 import type { QRScanner } from "@/lib/qr-scanner/types";
-import type { TicketTier } from "@/types";
+import type { TicketTier } from "@tix-seven/types";
 
 // To swap to a GM861S scanner, replace CameraAdapter with your HID/Serial adapter here.
 // Both implement the same QRScanner interface — no other changes needed.

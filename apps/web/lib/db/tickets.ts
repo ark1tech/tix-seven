@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { Ticket, TicketTier } from "@/types";
+import type { Ticket, TicketTier } from "@tix-seven/types";
 
 export async function getTickets(eventId: string): Promise<Ticket[]> {
   const supabase = await createClient();

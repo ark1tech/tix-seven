@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { Event } from "@/types";
+import type { Event } from "@tix-seven/types";
 
 interface Props {
   event?: Event;

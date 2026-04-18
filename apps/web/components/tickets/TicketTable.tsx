@@ -7,7 +7,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import type { Ticket } from "@/types";
+import type { Ticket } from "@tix-seven/types";
 
 export default function TicketTable({ tickets }: { tickets: Ticket[] }) {
   if (tickets.length === 0) {

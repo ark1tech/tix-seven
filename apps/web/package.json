@@ -1,5 +1,5 @@
 {
-  "name": "tix-seven-init",
+  "name": "@tix-seven/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {

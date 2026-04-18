@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Event } from "@/types";
+import type { Event } from "@tix-seven/types";
 
 interface Props {
   events: Event[];

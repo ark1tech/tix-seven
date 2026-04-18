@@ -6,7 +6,7 @@ import { buttonVariants } from "@/components/ui/button";
 import EventStats from "@/components/events/EventStats";
 import TicketTable from "@/components/tickets/TicketTable";
 import IssueTicketDialog from "@/components/tickets/IssueTicketDialog";
-import type { EventStats as EventStatsType } from "@/types";
+import type { EventStats as EventStatsType } from "@tix-seven/types";
 
 export default async function EventDetailPage({
   params,

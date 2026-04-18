@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { EntryLog } from "@/types";
+import type { EntryLog } from "@tix-seven/types";
 
 const DENIAL_LABELS: Record<string, string> = {
   invalid_id: "Invalid ID",

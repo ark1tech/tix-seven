@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { EntryLog } from "@/types";
+import type { EntryLog } from "@tix-seven/types";
 
 export async function getEntryLogs(eventId: string): Promise<EntryLog[]> {
   const supabase = await createClient();

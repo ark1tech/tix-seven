@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { Gate } from "@/types";
+import type { Gate } from "@tix-seven/types";
 
 export async function getGates(): Promise<Gate[]> {
   const supabase = await createClient();

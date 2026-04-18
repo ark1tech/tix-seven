@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@tix-seven/types": ["../../packages/types"]
     }
   },
   "include": [

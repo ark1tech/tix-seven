@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import type { EventStats } from "@/types";
+import type { EventStats } from "@tix-seven/types";
 
 interface Props {
   stats: EventStats;

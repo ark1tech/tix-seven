@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import type { Gate, Event } from "@/types";
+import type { Gate, Event } from "@tix-seven/types";
 
 interface Props {
   gates: Gate[];

@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import type { EntryLog } from "@/types";
+import type { EntryLog } from "@tix-seven/types";
 
 /**
  * Subscribe to new entry log rows for a specific event via Supabase Realtime.
