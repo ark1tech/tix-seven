@@ -28,9 +28,9 @@ export default async function EventDetailPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between border-b pb-6">
         <div>
-          <h1 className="text-2xl font-semibold">{event.name}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{event.name}</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {new Date(event.date).toLocaleDateString()} · {event.venue}
           </p>
@@ -45,7 +45,7 @@ export default async function EventDetailPage({
 
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium">Ticket Registry</h2>
+          <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Ticket Registry</h2>
           <IssueTicketDialog eventId={eventId} />
         </div>
         <TicketTable tickets={tickets} />

@@ -10,7 +10,7 @@ export default async function EventsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Events</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Events</h1>
         <Link href="/events/new" className={buttonVariants()}>New Event</Link>
       </div>
       {events.length === 0 ? (

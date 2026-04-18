@@ -8,13 +8,13 @@ export default async function GatesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold">Gates</h1>
+      <h1 className="text-3xl font-bold tracking-tight">Gates</h1>
       <div className="grid gap-8 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <GateTable gates={gates} events={events} />
         </div>
         <div>
-          <h2 className="text-lg font-medium mb-4">Register Gate</h2>
+          <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">Register Gate</h2>
           <GateForm events={events} />
         </div>
       </div>

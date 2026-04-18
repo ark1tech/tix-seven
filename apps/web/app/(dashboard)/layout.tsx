@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { createClient, isMockMode } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { Ticket } from "lucide-react";
+import SidebarNav from "@/components/dashboard/SidebarNav";
 import DebugOverlay from "@/components/debug/DebugOverlay";
 
 export default async function DashboardLayout({
@@ -20,35 +20,29 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex min-h-screen">
-      <aside className="flex w-56 flex-col border-r bg-background p-4 gap-2">
-        <span className="px-2 py-1 text-sm font-semibold tracking-tight">
-          TixSeven
-        </span>
-        <Separator />
-        <nav className="flex flex-col gap-1 mt-2">
-          <Link
-            href="/events"
-            className="rounded px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
-          >
-            Events
-          </Link>
-          <Link
-            href="/gates"
-            className="rounded px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
-          >
-            Gates
-          </Link>
-        </nav>
+      <aside className="flex w-60 flex-col border-r bg-sidebar p-4 gap-6">
+        <div className="flex items-center gap-2 px-1 pt-1">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <Ticket className="h-4 w-4" />
+          </div>
+          <span className="text-sm font-semibold tracking-tight">TixSeven</span>
+        </div>
+        <SidebarNav />
         <div className="mt-auto">
           {/* TODO: replace with a server action for sign-out */}
           <form action="/api/auth/signout" method="post">
-            <Button variant="ghost" size="sm" className="w-full justify-start" type="submit">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-muted-foreground hover:text-foreground"
+              type="submit"
+            >
               Sign out
             </Button>
           </form>
         </div>
       </aside>
-      <main className="flex-1 p-8 overflow-auto">{children}</main>
+      <main className="flex-1 p-8 overflow-auto bg-background">{children}</main>
       {process.env.NEXT_PUBLIC_DEBUG_TOOLS === "true" && (
         <DebugOverlay isMock={mock} />
       )}
