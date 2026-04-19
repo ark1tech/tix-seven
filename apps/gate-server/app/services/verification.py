@@ -1,4 +1,4 @@
-from app.adapters.mosip import MOSIPAdapter, StubMOSIPAdapter
+from app.adapters.mosip import MOSIPAdapter, RealMOSIPAdapter
 from app.adapters.supabase_client import get_supabase_client
 from app.core.crypto import hash_uin
 from app.models.schemas import DenialReason, VerifyResponse
@@ -6,7 +6,7 @@ from app.models.schemas import DenialReason, VerifyResponse
 
 class VerificationService:
     def __init__(self, mosip: MOSIPAdapter | None = None):
-        self.mosip = mosip or StubMOSIPAdapter()
+        self.mosip = mosip or RealMOSIPAdapter()
         self.db = get_supabase_client()
 
     def verify(self, qr_payload: str, gate_id: str) -> VerifyResponse:
