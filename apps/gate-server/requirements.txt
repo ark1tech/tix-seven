@@ -5,3 +5,9 @@ pydantic-settings==2.5.2
 supabase==2.9.1
 pytest==8.3.3
 httpx==0.27.2
+
+# MOSIP authentication SDK
+mosip-auth-sdk @ git+https://github.com/mosip/ida-auth-sdk.git@f322c59868123c2ef9410b5a3fecfd5dcdfd56af
+dynaconf==3.2.11
+cryptography==43.0.3
+jwcrypto==1.5.6
