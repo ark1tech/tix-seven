@@ -16,10 +16,14 @@ def require_api_key(api_key: str | None = Security(_api_key_header)) -> str:
     return api_key
 
 
+def get_verification_service() -> VerificationService:
+    return VerificationService()
+
+
 @router.post("/verify", response_model=VerifyResponse)
 def verify(
     body: VerifyRequest,
     _: str = Depends(require_api_key),
+    service: VerificationService = Depends(get_verification_service),
 ) -> VerifyResponse:
-    service = VerificationService()
     return service.verify(body.qr_payload, body.gate_id)

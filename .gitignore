@@ -23,6 +23,7 @@
 # misc
 .DS_Store
 *.pem
+*.p12
 
 # debug
 npm-debug.log*
@@ -41,3 +42,8 @@ yarn-error.log*
 next-env.d.ts
 
 .venv
+
+# Ignore Python cache files
+__pycache__/
+*.py[cod]
+*.pyc
