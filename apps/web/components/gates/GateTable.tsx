@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import type { Gate, Event } from "@tix-seven/types";
+import { cn } from "@/lib/utils";
 
 interface Props {
   gates: Gate[];
@@ -60,18 +61,18 @@ export default function GateTable({ gates, events }: Props) {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Device ID</TableHead>
-          <TableHead>Assigned Event</TableHead>
-          <TableHead />
+          <TableHead className="py-2 px-3 text-xs">Name</TableHead>
+          <TableHead className="py-2 px-3 text-xs">Device ID</TableHead>
+          <TableHead className="py-2 px-3 text-xs">Assigned Event</TableHead>
+          <TableHead className="py-2 px-3" />
         </TableRow>
       </TableHeader>
       <TableBody>
-        {gates.map((gate) => (
-          <TableRow key={gate.id}>
-            <TableCell>{gate.name}</TableCell>
-            <TableCell className="font-mono text-xs">{gate.device_id}</TableCell>
-            <TableCell>
+        {gates.map((gate, i) => (
+          <TableRow key={gate.id} className={cn(i % 2 === 1 && "bg-muted/40")}>
+            <TableCell className="py-2 px-3 text-sm">{gate.name}</TableCell>
+            <TableCell className="py-2 px-3 font-mono text-xs">{gate.device_id}</TableCell>
+            <TableCell className="py-2 px-3">
               <Select
                 value={gate.event_id ?? "unassigned"}
                 onValueChange={(v) =>
@@ -92,7 +93,7 @@ export default function GateTable({ gates, events }: Props) {
                 </SelectContent>
               </Select>
             </TableCell>
-            <TableCell>
+            <TableCell className="py-2 px-3">
               <Button
                 variant="ghost"
                 size="sm"
