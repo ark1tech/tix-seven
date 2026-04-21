@@ -12,7 +12,5 @@ class TicketStatusEnum(str, enum.Enum):
 
 
 class ResultEnum(str, enum.Enum):
-    GRANTED = "granted"
-    DENIED = "denied"
-    TIMEOUT = "timeout"
-    ERROR = "error"
+    GRANT = "grant"
+    DENY = "deny"

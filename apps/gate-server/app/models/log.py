@@ -22,8 +22,8 @@ class Log(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
 
-    event_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("event.event_id"), nullable=False
+    event_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("event.event_id"), nullable=True
     )
 
     gate_id: Mapped[uuid.UUID] = mapped_column(
@@ -39,6 +39,7 @@ class Log(Base):
     )
 
     reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    uin_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     timestamp: Mapped[datetime.datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False

@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel
 
 
@@ -16,6 +16,6 @@ class VerifyRequest(BaseModel):
 
 
 class VerifyResponse(BaseModel):
-    result: str  # "grant" | "deny"
+    result: Literal["grant", "deny"]
     ticket_id: Optional[str] = None
     reason: Optional[DenialReason] = None
