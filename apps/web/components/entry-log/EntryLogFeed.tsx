@@ -50,7 +50,9 @@ export default function EntryLogFeed({ eventId, initialLogs, isMock }: Props) {
 
   const filteredLogs = logs.filter((log) => {
     if (filter === "All") return true;
-    return log.result.toLowerCase() === filter.toLowerCase();
+    if (filter === "Granted") return log.result === "grant";
+    if (filter === "Denied") return log.result !== "grant"; // Better to catch all denials
+    return true;
   });
 
   const sortedLogs = [...filteredLogs].sort((a, b) => {
