@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, startTransition } from "react";
+import { useState, useRef, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -46,8 +46,9 @@ export default function IssueTicketDialog({ eventId }: Props) {
   const [isScanning, setIsScanning] = useState(false);
   const scannerRef = useRef<QRScanner | null>(null);
 
-  useEffect(() => {
-    if (!open) {
+  function handleOpenChange(newOpen: boolean) {
+    setOpen(newOpen);
+    if (!newOpen) {
       scannerRef.current?.stop();
       scannerRef.current = null;
       setStep("scan");
@@ -55,7 +56,7 @@ export default function IssueTicketDialog({ eventId }: Props) {
       setScannedPayload(null);
       setError(null);
     }
-  }, [open]);
+  }
 
   function startScanner() {
     setIsScanning(true);
@@ -100,8 +101,8 @@ export default function IssueTicketDialog({ eventId }: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button />}>Issue Ticket</DialogTrigger>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger render={<Button size="sm" />}>Issue Ticket</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Issue Ticket</DialogTitle>
