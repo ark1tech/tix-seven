@@ -17,14 +17,11 @@ class EventTicketLink(Base):
     __tablename__ = "event_ticket_link"
 
     link_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
 
     event_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("event.event_id"),
-        nullable=False
+        ForeignKey("event.event_id"), nullable=False
     )
 
     link_hash: Mapped[str] = mapped_column(String, unique=True, nullable=False)
@@ -32,9 +29,7 @@ class EventTicketLink(Base):
     # Relationships
     event: Mapped["Event"] = relationship("Event", back_populates="ticket_links")
     ticket: Mapped["Ticket"] = relationship(
-        "Ticket",
-        back_populates="ticket_link",
-        uselist=False
+        "Ticket", back_populates="ticket_link", uselist=False
     )
 
     __table_args__ = (

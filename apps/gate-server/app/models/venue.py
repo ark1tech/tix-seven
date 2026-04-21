@@ -16,9 +16,7 @@ class Venue(Base):
     __tablename__ = "venue"
 
     venue_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
 
     name: Mapped[str] = mapped_column(String, nullable=False)
@@ -27,6 +25,4 @@ class Venue(Base):
     events: Mapped[List["Event"]] = relationship("Event", back_populates="venue")
     gates: Mapped[List["Gate"]] = relationship("Gate", back_populates="venue")
 
-    __table_args__ = (
-        Index("ix_venue_name", "name"),
-    )
+    __table_args__ = (Index("ix_venue_name", "name"),)

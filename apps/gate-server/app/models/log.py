@@ -19,37 +19,29 @@ class Log(Base):
     __tablename__ = "log"
 
     log_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
 
     event_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("event.event_id"),
-        nullable=False
+        ForeignKey("event.event_id"), nullable=False
     )
 
     gate_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("gate.gate_id"),
-        nullable=False
+        ForeignKey("gate.gate_id"), nullable=False
     )
 
     ticket_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        ForeignKey("ticket.ticket_id"),
-        nullable=True
+        ForeignKey("ticket.ticket_id"), nullable=True
     )
 
     result: Mapped[ResultEnum] = mapped_column(
-        Enum(ResultEnum, name="log_result"),
-        nullable=False
+        Enum(ResultEnum, name="log_result"), nullable=False
     )
 
     reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     timestamp: Mapped[datetime.datetime] = mapped_column(
-        DateTime,
-        server_default=func.now(),
-        nullable=False
+        DateTime, server_default=func.now(), nullable=False
     )
 
     # Relationships

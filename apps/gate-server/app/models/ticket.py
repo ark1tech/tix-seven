@@ -18,45 +18,33 @@ class Ticket(Base):
     __tablename__ = "ticket"
 
     ticket_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
 
     link_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("event_ticket_link.link_id"),
-        unique=True,
-        nullable=False
+        ForeignKey("event_ticket_link.link_id"), unique=True, nullable=False
     )
 
     status: Mapped[TicketStatusEnum] = mapped_column(
         Enum(TicketStatusEnum, name="ticket_status"),
         nullable=False,
-        default=TicketStatusEnum.UNUSED
+        default=TicketStatusEnum.UNUSED,
     )
 
     created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime,
-        server_default=func.now(),
-        nullable=False
+        DateTime, server_default=func.now(), nullable=False
     )
 
     used_at: Mapped[Optional[datetime.datetime]] = mapped_column(
-        DateTime,
-        nullable=True,
-        default=None
+        DateTime, nullable=True, default=None
     )
 
     # Relationships
     ticket_link: Mapped["EventTicketLink"] = relationship(
-        "EventTicketLink",
-        back_populates="ticket"
+        "EventTicketLink", back_populates="ticket"
     )
 
-    logs: Mapped[List["Log"]] = relationship(
-        "Log",
-        back_populates="ticket"
-    )
+    logs: Mapped[List["Log"]] = relationship("Log", back_populates="ticket")
 
     __table_args__ = (
         Index("ix_ticket_link_id", "link_id"),

@@ -19,28 +19,21 @@ class Gate(Base):
     __tablename__ = "gate"
 
     gate_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
 
     venue_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("venue.venue_id"),
-        nullable=False
+        UUID(as_uuid=True), ForeignKey("venue.venue_id"), nullable=False
     )
 
     event_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("event.event_id"),
-        nullable=True
+        UUID(as_uuid=True), ForeignKey("event.event_id"), nullable=True
     )
 
     location: Mapped[str] = mapped_column(String, nullable=False)
 
     status: Mapped[GateStatusEnum] = mapped_column(
-        Enum(GateStatusEnum, name="gate_status"),
-        nullable=False
+        Enum(GateStatusEnum, name="gate_status"), nullable=False
     )
 
     # Relationships

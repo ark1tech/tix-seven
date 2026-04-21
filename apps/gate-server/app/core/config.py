@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     supabase_service_role_key: str
     hmac_pepper: str
     gate_api_key: str
+    database_url: str
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
