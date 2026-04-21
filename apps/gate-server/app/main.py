@@ -1,16 +1,22 @@
 from contextlib import asynccontextmanager
+import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
+from app.db.session import engine
 from app.routers import health, verify
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # TODO: add startup checks (DB connectivity, MOSIP reachability) here
+    with engine.connect() as connection:
+        connection.execute(text("SELECT 1"))
+    logger.info("Database connectivity check passed.")
     yield
-    # TODO: add graceful shutdown logic here if needed
 
 
 app = FastAPI(
@@ -22,7 +28,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Restrict to known ESP8266 IPs in production
+    allow_origins=[],
     allow_methods=["POST", "GET"],
     allow_headers=["X-Gate-Api-Key", "Content-Type"],
 )

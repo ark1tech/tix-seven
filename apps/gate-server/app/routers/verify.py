@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Security
 from fastapi.security.api_key import APIKeyHeader
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.db.get_db import get_db
 from app.models.schemas import VerifyRequest, VerifyResponse
 from app.services.verification import VerificationService
 
@@ -16,8 +18,8 @@ def require_api_key(api_key: str | None = Security(_api_key_header)) -> str:
     return api_key
 
 
-def get_verification_service() -> VerificationService:
-    return VerificationService()
+def get_verification_service(db: Session = Depends(get_db)) -> VerificationService:
+    return VerificationService(db=db)
 
 
 @router.post("/verify", response_model=VerifyResponse)
