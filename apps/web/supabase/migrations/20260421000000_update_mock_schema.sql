@@ -59,12 +59,13 @@ create index ix_mock_ticket_used_at on mock.ticket(used_at);
 
 create table mock.log (
   log_id uuid primary key default gen_random_uuid(),
-  event_id uuid not null references mock.event(event_id),
+  event_id uuid references mock.event(event_id),
   gate_id uuid not null references mock.gate(gate_id),
   ticket_id uuid references mock.ticket(ticket_id),
   result public.log_result not null,
   reason text,
-  timestamp timestamp not null default now()
+  timestamp timestamp not null default now(),
+  uin_hash text
 );
 
 create index ix_mock_log_event_gate_time on mock.log(event_id, gate_id, timestamp);

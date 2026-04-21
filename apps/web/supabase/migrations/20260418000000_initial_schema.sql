@@ -1,88 +1,84 @@
--- TixSeven initial schema
--- Run via: supabase db push  (or paste into Supabase SQL editor)
+-- TixSeven public schema aligned to gate-server Alembic models.
+-- This migration intentionally defines the current canonical schema.
 
 create extension if not exists "pgcrypto";
 
--- ─── Events ────────────────────────────────────────────────────────────────
-create table events (
-  id          uuid primary key default gen_random_uuid(),
-  name        text not null,
-  date        timestamptz not null,
-  venue       text not null,
-  capacity    integer not null check (capacity > 0),
-  created_at  timestamptz not null default now()
+drop type if exists ticket_tier cascade;
+drop type if exists scan_result cascade;
+drop type if exists denial_reason cascade;
+
+create type gate_status as enum ('ONLINE', 'OFFLINE');
+create type ticket_status as enum ('UNUSED', 'USED');
+create type log_result as enum ('grant', 'deny');
+
+create table venue (
+  venue_id uuid primary key default gen_random_uuid(),
+  name text not null
 );
 
--- ─── Tickets ───────────────────────────────────────────────────────────────
-create type ticket_tier   as enum ('vip', 'ga');
-create type ticket_status as enum ('unused', 'used');
+create index ix_venue_name on venue(name);
 
-create table tickets (
-  id                 uuid primary key default gen_random_uuid(),
-  event_id           uuid not null references events(id) on delete cascade,
-  uin_hash           text not null,
-  tier               ticket_tier   not null,
-  seat               text not null,
-  status             ticket_status not null default 'unused',
-  purchase_timestamp timestamptz   not null default now(),
-  created_at         timestamptz   not null default now(),
-
-  -- One ticket per identity per event
-  unique (event_id, uin_hash)
+create table event (
+  event_id uuid primary key default gen_random_uuid(),
+  venue_id uuid not null references venue(venue_id),
+  name text not null,
+  start_time timestamp not null,
+  end_time timestamp not null,
+  capacity integer not null,
+  constraint check_if_event_time_valid check (end_time > start_time)
 );
 
-create index tickets_event_id_idx on tickets(event_id);
-create index tickets_uin_hash_idx on tickets(uin_hash);
+create index ix_event_time_range on event(start_time, end_time);
+create index ix_event_venue_id on event(venue_id);
 
--- ─── Gates ─────────────────────────────────────────────────────────────────
-create table gates (
-  id         uuid primary key default gen_random_uuid(),
-  event_id   uuid references events(id) on delete set null,
-  name       text not null,
-  device_id  text not null unique,
-  created_at timestamptz not null default now()
+create table event_ticket_link (
+  link_id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references event(event_id),
+  link_hash text not null unique
 );
 
-create index gates_event_id_idx on gates(event_id);
+create index ix_link_event_id on event_ticket_link(event_id);
+create index ix_link_hash on event_ticket_link(link_hash);
 
--- ─── Entry Logs ────────────────────────────────────────────────────────────
-create type scan_result   as enum ('grant', 'deny');
-create type denial_reason as enum ('invalid_id', 'no_ticket', 'already_used', 'wrong_event');
-
-create table entry_logs (
-  id            uuid primary key default gen_random_uuid(),
-  gate_id       uuid not null references gates(id) on delete restrict,
-  event_id      uuid not null references events(id) on delete cascade,
-  uin_hash      text not null,
-  result        scan_result   not null,
-  denial_reason denial_reason,  -- null when result = 'grant'
-  timestamp     timestamptz   not null default now(),
-
-  check (
-    (result = 'grant' and denial_reason is null) or
-    (result = 'deny'  and denial_reason is not null)
-  )
+create table gate (
+  gate_id uuid primary key default gen_random_uuid(),
+  venue_id uuid references venue(venue_id),
+  event_id uuid references event(event_id),
+  location text not null,
+  status gate_status not null
 );
 
-create index entry_logs_event_id_idx on entry_logs(event_id);
-create index entry_logs_timestamp_idx on entry_logs(timestamp desc);
+create index ix_gate_event_id on gate(event_id);
+create index ix_gate_status on gate(status);
+create index ix_gate_venue_id on gate(venue_id);
 
--- ─── Seat Pool (mock data helper) ─────────────────────────────────────────
--- Stores available seats per event+tier. issueTicket() claims the next untaken seat.
-create table seat_pool (
-  id        uuid primary key default gen_random_uuid(),
-  event_id  uuid not null references events(id) on delete cascade,
-  tier      ticket_tier not null,
-  seat      text not null,
-  taken     boolean not null default false,
-  unique (event_id, tier, seat)
+create table ticket (
+  ticket_id uuid primary key default gen_random_uuid(),
+  link_id uuid not null unique references event_ticket_link(link_id),
+  status ticket_status not null default 'UNUSED',
+  created_at timestamp not null default now(),
+  used_at timestamp
 );
 
-create index seat_pool_lookup_idx on seat_pool(event_id, tier, taken);
+create index ix_ticket_link_id on ticket(link_id);
+create index ix_ticket_status on ticket(status);
+create index ix_ticket_used_at on ticket(used_at);
 
--- ─── Realtime ──────────────────────────────────────────────────────────────
--- Enable Realtime replication for entry_logs so the dashboard feed works.
--- Run this after creating the table in Supabase dashboard:
---   Realtime → Tables → entry_logs → Enable
--- Or via SQL:
-alter publication supabase_realtime add table entry_logs;
+create table log (
+  log_id uuid primary key default gen_random_uuid(),
+  event_id uuid references event(event_id),
+  gate_id uuid not null references gate(gate_id),
+  ticket_id uuid references ticket(ticket_id),
+  result log_result not null,
+  reason text,
+  timestamp timestamp not null default now(),
+  uin_hash text
+);
+
+create index ix_log_event_gate_time on log(event_id, gate_id, timestamp);
+create index ix_log_event_id on log(event_id);
+create index ix_log_gate_id on log(gate_id);
+create index ix_log_ticket_id on log(ticket_id);
+create index ix_log_timestamp on log(timestamp);
+
+alter publication supabase_realtime add table log;
