@@ -22,8 +22,8 @@ class Gate(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
 
-    venue_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("venue.venue_id"), nullable=False
+    venue_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("venue.venue_id"), nullable=True
     )
 
     event_id: Mapped[Optional[uuid.UUID]] = mapped_column(

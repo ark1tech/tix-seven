@@ -1,4 +1,4 @@
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Index
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Index
 
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -30,6 +30,7 @@ class Event(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     start_time: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
     end_time: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    capacity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # Relationships
     venue: Mapped["Venue"] = relationship("Venue", back_populates="events")

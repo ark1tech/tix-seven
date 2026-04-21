@@ -1,47 +1,42 @@
-export type TicketTier = "vip" | "ga";
-export type TicketStatus = "unused" | "used";
-export type ScanResult = "grant" | "deny";
-export type DenialReason =
-  | "invalid_id"
-  | "no_ticket"
-  | "already_used"
-  | "wrong_event";
+export type TicketStatus = "UNUSED" | "USED";
+export type GateStatus = "ONLINE" | "OFFLINE";
+export type LogResult = "GRANTED" | "DENIED" | "TIMEOUT" | "ERROR";
 
 export interface Event {
-  id: string;
-  name: string;
-  date: string;
-  venue: string;
-  capacity: number;
-  created_at: string;
-}
-
-export interface Ticket {
-  id: string;
   event_id: string;
-  uin_hash: string;
-  tier: TicketTier;
-  seat: string;
-  status: TicketStatus;
-  purchase_timestamp: string;
-  created_at: string;
+  venue_id: string;
+  venue_name: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  capacity: number;
 }
 
 export interface Gate {
-  id: string;
+  gate_id: string;
+  venue_id: string | null;
   event_id: string | null;
-  name: string;
-  device_id: string;
-  created_at: string;
+  location: string;
+  status: GateStatus;
 }
 
-export interface EntryLog {
-  id: string;
-  gate_id: string;
+export interface Ticket {
+  ticket_id: string;
+  link_id: string;
+  link_hash: string;
   event_id: string;
-  uin_hash: string;
-  result: ScanResult;
-  denial_reason: DenialReason | null;
+  status: TicketStatus;
+  created_at: string;
+  used_at: string | null;
+}
+
+export interface Log {
+  log_id: string;
+  event_id: string;
+  gate_id: string;
+  ticket_id: string | null;
+  result: LogResult;
+  reason: string | null;
   timestamp: string;
 }
 

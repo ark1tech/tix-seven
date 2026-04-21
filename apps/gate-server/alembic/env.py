@@ -43,7 +43,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = settings.supabase_url
+    url = settings.database_url
 
     context.configure(
         url=url,
@@ -63,7 +63,7 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = create_engine(settings.supabase_url) # type: ignore
+    connectable = create_engine(settings.database_url) # type: ignore
 
     with connectable.connect() as connection:
         context.configure(
