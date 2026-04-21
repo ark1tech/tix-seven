@@ -63,25 +63,27 @@ select
   case when n <= 10 then now() - (n * interval '20 minute') else null end
 from generate_series(1, 20) as n;
 
--- Build 40 logs per event with mostly GRANTED results.
-insert into mock.log (log_id, event_id, gate_id, ticket_id, result, reason, timestamp)
+-- Build 40 logs per event with mostly grant results.
+insert into mock.log (log_id, event_id, gate_id, ticket_id, result, reason, timestamp, uin_hash)
 select
   ('e1000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid,
   'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
   (case when n % 2 = 0 then 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbb001' else 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbb002' end)::uuid,
   ('d1000000-0000-0000-0000-' || lpad(((n - 1) % 20 + 1)::text, 12, '0'))::uuid,
-  (case when n % 7 = 0 then 'DENIED' else 'GRANTED' end)::public.log_result,
+  (case when n % 7 = 0 then 'deny' else 'grant' end)::public.log_result,
   case when n % 7 = 0 then 'already_used' else null end,
-  now() - ((40 - n) * interval '4 minute')
+  now() - ((40 - n) * interval '4 minute'),
+  null
 from generate_series(1, 40) as n;
 
-insert into mock.log (log_id, event_id, gate_id, ticket_id, result, reason, timestamp)
+insert into mock.log (log_id, event_id, gate_id, ticket_id, result, reason, timestamp, uin_hash)
 select
   ('e2000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid,
   'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2',
   (case when n % 2 = 0 then 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbb003' else 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbb004' end)::uuid,
   ('d2000000-0000-0000-0000-' || lpad(((n - 1) % 20 + 1)::text, 12, '0'))::uuid,
-  (case when n % 8 = 0 then 'DENIED' else 'GRANTED' end)::public.log_result,
-  case when n % 8 = 0 then 'invalid_signature' else null end,
-  now() - ((40 - n) * interval '3 minute')
+  (case when n % 8 = 0 then 'deny' else 'grant' end)::public.log_result,
+  case when n % 8 = 0 then 'invalid_id' else null end,
+  now() - ((40 - n) * interval '3 minute'),
+  null
 from generate_series(1, 40) as n;
