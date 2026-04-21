@@ -3,18 +3,36 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Event } from "@tix-seven/types";
 
 export default function EventCard({ event }: { event: Event }) {
+  const date = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(event.date));
+  const month = new Intl.DateTimeFormat(undefined, { month: "short" }).format(new Date(event.date));
+  const day = new Intl.DateTimeFormat(undefined, { day: "numeric" }).format(new Date(event.date));
+
   return (
     <Link href={`/events/${event.id}`}>
-      <Card className="hover:border-foreground/30 transition-colors cursor-pointer">
-        <CardHeader>
-          <CardTitle className="text-base">{event.name}</CardTitle>
+      <Card className="hover:shadow-md transition-shadow duration-150 cursor-pointer h-full flex flex-col">
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-2">
+            <CardTitle className="text-base font-semibold leading-snug">{event.name}</CardTitle>
+            <span className="shrink-0 inline-flex flex-col items-center rounded-md bg-primary/10 px-2 py-1 text-primary leading-none">
+              <span className="text-[10px] font-medium uppercase tracking-wide">{month}</span>
+              <span className="text-sm font-bold">{day}</span>
+            </span>
+          </div>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground flex flex-col gap-1">
-          <time suppressHydrationWarning>
-            {new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(event.date))}
-          </time>
-          <span>{event.venue}</span>
-          <span>Capacity: {event.capacity}</span>
+        <CardContent className="flex flex-col gap-3 flex-1 justify-between">
+          <div className="text-sm text-muted-foreground flex flex-col gap-0.5">
+            <span>{event.venue}</span>
+            <time suppressHydrationWarning className="text-xs">{date}</time>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Capacity</span>
+              <span className="font-medium text-foreground">{event.capacity.toLocaleString()}</span>
+            </div>
+            <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
+              <div className="h-1 rounded-full bg-primary" style={{ width: "0%" }} />
+            </div>
+          </div>
         </CardContent>
       </Card>
     </Link>
