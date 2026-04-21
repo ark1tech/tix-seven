@@ -18,40 +18,31 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { EntryLog } from "@tix-seven/types";
+import type { Log } from "@tix-seven/types";
 import { Filter, ArrowUpDown } from "lucide-react";
-
-const DENIAL_LABELS: Record<string, string> = {
-  invalid_id: "Invalid ID",
-  no_ticket: "No Ticket",
-  already_used: "Already Used",
-  wrong_event: "Wrong Event",
-};
 
 interface Props {
   eventId: string;
-  initialLogs: EntryLog[];
-  isMock?: boolean;
+  initialLogs: Log[];
 }
 
-export default function EntryLogFeed({ eventId, initialLogs, isMock }: Props) {
-  const [logs, setLogs] = useState<EntryLog[]>(initialLogs);
+export default function EntryLogFeed({ eventId, initialLogs }: Props) {
+  const [logs, setLogs] = useState<Log[]>(initialLogs);
   const [filter, setFilter] = useState<"All" | "Granted" | "Denied">("All");
   const [sort, setSort] = useState<"Newest" | "Oldest">("Newest");
 
   useEffect(() => {
     const unsub = subscribeToEntryLogs(
       eventId,
-      (newLog) => setLogs((prev) => [newLog, ...prev]),
-      isMock ? "mock" : "public"
+      (newLog) => setLogs((prev) => [newLog, ...prev])
     );
     return unsub;
-  }, [eventId, isMock]);
+  }, [eventId]);
 
   const filteredLogs = logs.filter((log) => {
     if (filter === "All") return true;
-    if (filter === "Granted") return log.result === "grant";
-    if (filter === "Denied") return log.result !== "grant"; // Better to catch all denials
+    if (filter === "Granted") return log.result === "GRANTED";
+    if (filter === "Denied") return log.result !== "GRANTED";
     return true;
   });
 
@@ -105,12 +96,12 @@ export default function EntryLogFeed({ eventId, initialLogs, isMock }: Props) {
           <TableHead className="py-2 px-3 text-xs">Time</TableHead>
           <TableHead className="py-2 px-3 text-xs">Result</TableHead>
           <TableHead className="py-2 px-3 text-xs">Reason</TableHead>
-          <TableHead className="py-2 px-3 text-xs">UIN Hash</TableHead>
+          <TableHead className="py-2 px-3 text-xs">Ticket ID</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {sortedLogs.map((log, i) => (
-          <TableRow key={log.id} className={cn(i % 2 === 1 && "bg-muted/40")}>
+          <TableRow key={log.log_id} className={cn(i % 2 === 1 && "bg-muted/40")}>
             <TableCell className="py-2 px-3 text-xs text-muted-foreground">
               <time suppressHydrationWarning>
                 {new Intl.DateTimeFormat(undefined, { timeStyle: "medium" }).format(new Date(log.timestamp))}
@@ -119,22 +110,22 @@ export default function EntryLogFeed({ eventId, initialLogs, isMock }: Props) {
             <TableCell className="py-2 px-3">
               <span className={cn(
                 "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
-                log.result === "grant"
+                log.result === "GRANTED"
                   ? "bg-emerald-50 text-emerald-700"
                   : "bg-red-50 text-red-700"
               )}>
                 <span className={cn(
                   "h-1.5 w-1.5 rounded-full",
-                  log.result === "grant" ? "bg-emerald-500" : "bg-red-500"
+                  log.result === "GRANTED" ? "bg-emerald-500" : "bg-red-500"
                 )} />
-                {log.result === "grant" ? "Granted" : "Denied"}
+                {log.result === "GRANTED" ? "Granted" : log.result}
               </span>
             </TableCell>
             <TableCell className="py-2 px-3 text-sm">
-              {log.denial_reason ? DENIAL_LABELS[log.denial_reason] ?? log.denial_reason : "—"}
+              {log.reason ?? "—"}
             </TableCell>
             <TableCell className="py-2 px-3 font-mono text-xs text-muted-foreground">
-              {log.uin_hash.slice(0, 12)}…
+              {log.ticket_id ? `${log.ticket_id.slice(0, 8)}…` : "—"}
             </TableCell>
           </TableRow>
         ))}

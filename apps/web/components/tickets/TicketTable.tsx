@@ -25,14 +25,14 @@ export default function TicketTable({ tickets }: { tickets: Ticket[] }) {
   const [sort, setSort] = useState<"Newest" | "Oldest">("Newest");
 
   const filteredTickets = tickets.filter((t) => {
-    if (filter === "Active") return t.status !== "used";
-    if (filter === "Used") return t.status === "used";
+    if (filter === "Active") return t.status !== "USED";
+    if (filter === "Used") return t.status === "USED";
     return true;
   });
 
   const sortedTickets = [...filteredTickets].sort((a, b) => {
-    const timeA = new Date(a.purchase_timestamp).getTime();
-    const timeB = new Date(b.purchase_timestamp).getTime();
+    const timeA = new Date(a.created_at).getTime();
+    const timeB = new Date(b.created_at).getTime();
     return sort === "Newest" ? timeB - timeA : timeA - timeB;
   });
 
@@ -75,46 +75,33 @@ export default function TicketTable({ tickets }: { tickets: Ticket[] }) {
           <TableHeader>
             <TableRow>
               <TableHead className="py-2 px-3 text-xs">Ticket ID</TableHead>
-              <TableHead className="py-2 px-3 text-xs">UIN Hash</TableHead>
-              <TableHead className="py-2 px-3 text-xs">Tier</TableHead>
-              <TableHead className="py-2 px-3 text-xs">Seat</TableHead>
+              <TableHead className="py-2 px-3 text-xs">Link Hash</TableHead>
               <TableHead className="py-2 px-3 text-xs">Status</TableHead>
               <TableHead className="py-2 px-3 text-xs">Issued At</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortedTickets.map((ticket, i) => (
-              <TableRow key={ticket.id} className={i % 2 === 1 ? "bg-muted/40" : undefined}>
-                <TableCell className="py-2 px-3 font-mono text-xs">{ticket.id.slice(0, 8)}…</TableCell>
-                <TableCell className="py-2 px-3 font-mono text-xs">{ticket.uin_hash.slice(0, 12)}…</TableCell>
-                <TableCell className="py-2 px-3">
-                  <span className={cn(
-                    "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
-                    ticket.tier === "vip"
-                      ? "bg-amber-50 text-amber-700"
-                      : "bg-zinc-100 text-zinc-600"
-                  )}>
-                    {ticket.tier.toUpperCase()}
-                  </span>
-                </TableCell>
-                <TableCell className="py-2 px-3 text-sm">{ticket.seat}</TableCell>
+              <TableRow key={ticket.ticket_id} className={i % 2 === 1 ? "bg-muted/40" : undefined}>
+                <TableCell className="py-2 px-3 font-mono text-xs">{ticket.ticket_id.slice(0, 8)}…</TableCell>
+                <TableCell className="py-2 px-3 font-mono text-xs">{ticket.link_hash.slice(0, 12)}…</TableCell>
                 <TableCell className="py-2 px-3">
                   <span className={cn(
                     "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
-                    ticket.status === "used"
+                    ticket.status === "USED"
                       ? "bg-red-50 text-red-700"
                       : "bg-emerald-50 text-emerald-700"
                   )}>
                     <span className={cn(
                       "h-1.5 w-1.5 rounded-full",
-                      ticket.status === "used" ? "bg-red-500" : "bg-emerald-500"
+                      ticket.status === "USED" ? "bg-red-500" : "bg-emerald-500"
                     )} />
-                    {ticket.status === "used" ? "Used" : "Active"}
+                    {ticket.status === "USED" ? "Used" : "Active"}
                   </span>
                 </TableCell>
                 <TableCell className="py-2 px-3 text-xs text-muted-foreground">
                   <time suppressHydrationWarning>
-                    {new Intl.DateTimeFormat(undefined, { dateStyle: "short", timeStyle: "short" }).format(new Date(ticket.purchase_timestamp))}
+                    {new Intl.DateTimeFormat(undefined, { dateStyle: "short", timeStyle: "short" }).format(new Date(ticket.created_at))}
                   </time>
                 </TableCell>
               </TableRow>

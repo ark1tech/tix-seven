@@ -1,13 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
-import type { EntryLog } from "@tix-seven/types";
+import type { Log } from "@tix-seven/types";
 
-export async function getEntryLogs(eventId: string): Promise<EntryLog[]> {
+export async function getEntryLogs(eventId: string): Promise<Log[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from("entry_logs")
-    .select("*")
+    .from("log")
+    .select("log_id, event_id, gate_id, ticket_id, result, reason, timestamp")
     .eq("event_id", eventId)
     .order("timestamp", { ascending: false });
   if (error) throw error;
-  return data;
+  return data as Log[];
 }
