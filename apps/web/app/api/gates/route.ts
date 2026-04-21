@@ -4,8 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getGates, createGate } from "@/lib/db/gates";
 
 const CreateGateSchema = z.object({
-  name: z.string().min(1),
-  device_id: z.string().min(1),
+  location: z.string().min(1),
   event_id: z.string().uuid().nullable().optional(),
 });
 
@@ -30,8 +29,7 @@ export async function POST(request: Request) {
   }
 
   const gate = await createGate({
-    name: parsed.data.name,
-    device_id: parsed.data.device_id,
+    location: parsed.data.location,
     event_id: parsed.data.event_id ?? null,
   });
   return NextResponse.json(gate, { status: 201 });

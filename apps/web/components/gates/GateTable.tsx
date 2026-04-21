@@ -61,24 +61,37 @@ export default function GateTable({ gates, events }: Props) {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead className="py-2 px-3 text-xs">Name</TableHead>
-          <TableHead className="py-2 px-3 text-xs">Device ID</TableHead>
+          <TableHead className="py-2 px-3 text-xs">Location</TableHead>
+          <TableHead className="py-2 px-3 text-xs">Status</TableHead>
           <TableHead className="py-2 px-3 text-xs">Assigned Event</TableHead>
           <TableHead className="py-2 px-3" />
         </TableRow>
       </TableHeader>
       <TableBody>
         {gates.map((gate, i) => (
-          <TableRow key={gate.id} className={cn(i % 2 === 1 && "bg-muted/40")}>
-            <TableCell className="py-2 px-3 text-sm">{gate.name}</TableCell>
-            <TableCell className="py-2 px-3 font-mono text-xs">{gate.device_id}</TableCell>
+          <TableRow key={gate.gate_id} className={cn(i % 2 === 1 && "bg-muted/40")}>
+            <TableCell className="py-2 px-3 text-sm">{gate.location}</TableCell>
+            <TableCell className="py-2 px-3">
+              <span className={cn(
+                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
+                gate.status === "ONLINE"
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-zinc-100 text-zinc-500"
+              )}>
+                <span className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  gate.status === "ONLINE" ? "bg-emerald-500" : "bg-zinc-400"
+                )} />
+                {gate.status}
+              </span>
+            </TableCell>
             <TableCell className="py-2 px-3">
               <Select
                 value={gate.event_id ?? "unassigned"}
                 onValueChange={(v) =>
-                  handleAssign(gate.id, v === "unassigned" ? null : v)
+                  handleAssign(gate.gate_id, v === "unassigned" ? null : v)
                 }
-                disabled={loading === gate.id}
+                disabled={loading === gate.gate_id}
               >
                 <SelectTrigger className="w-48">
                   <SelectValue />
@@ -86,7 +99,7 @@ export default function GateTable({ gates, events }: Props) {
                 <SelectContent>
                   <SelectItem value="unassigned">Unassigned</SelectItem>
                   {events.map((event) => (
-                    <SelectItem key={event.id} value={event.id}>
+                    <SelectItem key={event.event_id} value={event.event_id}>
                       {event.name}
                     </SelectItem>
                   ))}
@@ -97,8 +110,8 @@ export default function GateTable({ gates, events }: Props) {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => handleDelete(gate.id)}
-                disabled={loading === gate.id}
+                onClick={() => handleDelete(gate.gate_id)}
+                disabled={loading === gate.gate_id}
               >
                 Remove
               </Button>

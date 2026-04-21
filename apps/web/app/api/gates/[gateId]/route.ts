@@ -4,8 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { updateGate, deleteGate } from "@/lib/db/gates";
 
 const UpdateGateSchema = z.object({
-  name: z.string().min(1).optional(),
-  device_id: z.string().min(1).optional(),
+  location: z.string().min(1).optional(),
   event_id: z.string().uuid().nullable().optional(),
 });
 

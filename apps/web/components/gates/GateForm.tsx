@@ -20,8 +20,7 @@ interface Props {
 
 export default function GateForm({ events }: Props) {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [deviceId, setDeviceId] = useState("");
+  const [location, setLocation] = useState("");
   const [eventId, setEventId] = useState<string>("unassigned");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,8 +34,7 @@ export default function GateForm({ events }: Props) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name,
-        device_id: deviceId,
+        location,
         event_id: eventId === "unassigned" ? null : eventId,
       }),
     });
@@ -49,8 +47,7 @@ export default function GateForm({ events }: Props) {
       return;
     }
 
-    setName("");
-    setDeviceId("");
+    setLocation("");
     setEventId("unassigned");
     setLoading(false);
     startTransition(() => {
@@ -61,22 +58,12 @@ export default function GateForm({ events }: Props) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="gate-name">Gate Name</Label>
+        <Label htmlFor="gate-location">Location</Label>
         <Input
-          id="gate-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Gate A"
-          required
-        />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="device-id">Device ID</Label>
-        <Input
-          id="device-id"
-          value={deviceId}
-          onChange={(e) => setDeviceId(e.target.value)}
-          placeholder="e.g. ESP8266-001"
+          id="gate-location"
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
+          placeholder="e.g. Main Entrance"
           required
         />
       </div>
@@ -89,7 +76,7 @@ export default function GateForm({ events }: Props) {
           <SelectContent>
             <SelectItem value="unassigned">Unassigned</SelectItem>
             {events.map((event) => (
-              <SelectItem key={event.id} value={event.id}>
+              <SelectItem key={event.event_id} value={event.event_id}>
                 {event.name}
               </SelectItem>
             ))}
