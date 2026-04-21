@@ -8,7 +8,9 @@ export default async function GatesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-3xl font-bold tracking-tight">Gates</h1>
+      <div className="pb-5 border-b">
+        <h1 className="text-2xl font-semibold tracking-tight">Gates</h1>
+      </div>
       <div className="grid gap-8 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <GateTable gates={gates} events={events} />

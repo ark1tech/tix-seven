@@ -1,29 +1,22 @@
-import Link from "next/link";
 import { getEvents } from "@/lib/db/events";
-import { buttonVariants } from "@/components/ui/button";
 import EventCard from "@/components/events/EventCard";
+import CreateEventCard from "@/components/events/CreateEventCard";
 
 export default async function EventsPage() {
-  // TODO: add error boundary / loading state
   const events = await getEvents();
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Events</h1>
-        <Link href="/events/new" className={buttonVariants()}>New Event</Link>
+      <div className="flex items-center justify-between pb-5 border-b">
+        <h1 className="text-2xl font-semibold tracking-tight">Events</h1>
       </div>
-      {events.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
-          No events yet. Create your first event.
-        </p>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {events.map((event) => (
-            <EventCard key={event.id} event={event} />
-          ))}
-        </div>
-      )}
+      
+      <div className="grid gap-6 grid-cols-[repeat(auto-fill,minmax(320px,1fr))]">
+        {events.map((event) => (
+          <EventCard key={event.id} event={event} />
+        ))}
+        <CreateEventCard />
+      </div>
     </div>
   );
 }

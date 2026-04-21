@@ -1,11 +1,8 @@
-import Link from "next/link";
 import { getEvent } from "@/lib/db/events";
 import { getTickets } from "@/lib/db/tickets";
 import { getEntryLogs } from "@/lib/db/entry-logs";
-import { buttonVariants } from "@/components/ui/button";
 import EventStats from "@/components/events/EventStats";
 import TicketTable from "@/components/tickets/TicketTable";
-import IssueTicketDialog from "@/components/tickets/IssueTicketDialog";
 import type { EventStats as EventStatsType } from "@tix-seven/types";
 
 export default async function EventDetailPage({
@@ -28,26 +25,10 @@ export default async function EventDetailPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex items-start justify-between border-b pb-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{event.name}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {new Date(event.date).toLocaleDateString()} · {event.venue}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Link href={`/events/${eventId}/edit`} className={buttonVariants({ variant: "outline" })}>Edit</Link>
-          <Link href={`/events/${eventId}/entry-log`} className={buttonVariants({ variant: "outline" })}>Live Entry Log</Link>
-        </div>
-      </div>
 
       <EventStats stats={stats} capacity={event.capacity} />
 
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Ticket Registry</h2>
-          <IssueTicketDialog eventId={eventId} />
-        </div>
         <TicketTable tickets={tickets} />
       </div>
     </div>
