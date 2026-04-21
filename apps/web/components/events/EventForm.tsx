@@ -16,10 +16,13 @@ export default function EventForm({ event }: Props) {
   const isEditing = !!event;
 
   const [name, setName] = useState(event?.name ?? "");
-  const [date, setDate] = useState(
-    event ? event.date.slice(0, 16) : ""
+  const [startTime, setStartTime] = useState(
+    event ? event.start_time.slice(0, 16) : ""
   );
-  const [venue, setVenue] = useState(event?.venue ?? "");
+  const [endTime, setEndTime] = useState(
+    event ? event.end_time.slice(0, 16) : ""
+  );
+  const [venueName, setVenueName] = useState(event?.venue_name ?? "");
   const [capacity, setCapacity] = useState(
     event?.capacity?.toString() ?? ""
   );
@@ -33,13 +36,13 @@ export default function EventForm({ event }: Props) {
 
     const payload = {
       name,
-      date: new Date(date).toISOString(),
-      venue,
+      start_time: new Date(startTime).toISOString(),
+      end_time: new Date(endTime).toISOString(),
+      venue_name: venueName,
       capacity: parseInt(capacity, 10),
     };
 
-    // TODO: implement full form submission with validation feedback
-    const url = isEditing ? `/api/events/${event.id}` : "/api/events";
+    const url = isEditing ? `/api/events/${event.event_id}` : "/api/events";
     const method = isEditing ? "PATCH" : "POST";
 
     const res = await fetch(url, {
@@ -58,7 +61,7 @@ export default function EventForm({ event }: Props) {
 
     const saved = await res.json();
     startTransition(() => {
-      router.push(`/events/${saved.id}`);
+      router.push(`/events/${saved.event_id}`);
       router.refresh();
     });
   }
@@ -70,12 +73,16 @@ export default function EventForm({ event }: Props) {
         <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="date">Date & Time</Label>
-        <Input id="date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} required />
+        <Label htmlFor="start-time">Start Date & Time</Label>
+        <Input id="start-time" type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="end-time">End Date & Time</Label>
+        <Input id="end-time" type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="venue">Venue</Label>
-        <Input id="venue" value={venue} onChange={(e) => setVenue(e.target.value)} required />
+        <Input id="venue" value={venueName} onChange={(e) => setVenueName(e.target.value)} required />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="capacity">Capacity</Label>

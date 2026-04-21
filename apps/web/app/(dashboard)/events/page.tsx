@@ -13,7 +13,7 @@ export default async function EventsPage() {
       
       <div className="grid gap-6 grid-cols-[repeat(auto-fill,minmax(320px,1fr))]">
         {events.map((event) => (
-          <EventCard key={event.id} event={event} />
+          <EventCard key={event.event_id} event={event} />
         ))}
         <CreateEventCard />
       </div>

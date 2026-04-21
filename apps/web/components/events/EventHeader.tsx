@@ -6,7 +6,6 @@ import { ChevronRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Event } from "@tix-seven/types";
-import IssueTicketDialog from "@/components/tickets/IssueTicketDialog";
 
 interface Props {
   event: Event;
@@ -14,14 +13,14 @@ interface Props {
 
 export default function EventHeader({ event }: Props) {
   const pathname = usePathname();
-  const rootPath = `/events/${event.id}`;
+  const rootPath = `/events/${event.event_id}`;
   const isRoot = pathname === rootPath;
   const isEntryLog = pathname.endsWith("/entry-log");
   const isEdit = pathname.endsWith("/edit");
 
   const formattedDate = new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
-  }).format(new Date(event.date));
+  }).format(new Date(event.start_time));
 
   return (
     <div className="pb-5 border-b mb-8">
@@ -34,7 +33,7 @@ export default function EventHeader({ event }: Props) {
         </Link>
         <ChevronRight className="h-3 w-3 shrink-0" />
         <Link
-          href={`/events/${event.id}`}
+          href={`/events/${event.event_id}`}
           className={cn(
             "transition-colors duration-150",
             !isEntryLog && !isEdit ? "text-foreground cursor-default" : "hover:text-foreground"
@@ -62,25 +61,24 @@ export default function EventHeader({ event }: Props) {
             {event.name}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {event.venue} · {formattedDate}
+            {event.venue_name} · {formattedDate}
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
           {isRoot && (
             <>
               <Link
-                href={`/events/${event.id}/edit`}
+                href={`/events/${event.event_id}/edit`}
                 className={buttonVariants({ variant: "outline", size: "sm" })}
               >
                 Edit
               </Link>
               <Link
-                href={`/events/${event.id}/entry-log`}
+                href={`/events/${event.event_id}/entry-log`}
                 className={buttonVariants({ variant: "outline", size: "sm" })}
               >
                 Live Entry Log
               </Link>
-              <IssueTicketDialog eventId={event.id} />
             </>
           )}
         </div>

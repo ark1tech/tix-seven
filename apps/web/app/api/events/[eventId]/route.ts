@@ -5,8 +5,9 @@ import { getEvent, updateEvent } from "@/lib/db/events";
 
 const UpdateEventSchema = z.object({
   name: z.string().min(1).optional(),
-  date: z.string().datetime().optional(),
-  venue: z.string().min(1).optional(),
+  start_time: z.string().datetime().optional(),
+  end_time: z.string().datetime().optional(),
+  venue_name: z.string().min(1).optional(),
   capacity: z.number().int().positive().optional(),
 });
 

@@ -19,8 +19,8 @@ export default async function EventDetailPage({
 
   const stats: EventStatsType = {
     sold: tickets.length,
-    scanned: logs.filter((l) => l.result === "grant").length,
-    denied: logs.filter((l) => l.result === "deny").length,
+    scanned: logs.filter((l) => l.result === "GRANTED").length,
+    denied: logs.filter((l) => l.result !== "GRANTED").length,
   };
 
   return (

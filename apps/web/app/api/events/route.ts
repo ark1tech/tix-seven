@@ -5,8 +5,9 @@ import { getEvents, createEvent } from "@/lib/db/events";
 
 const CreateEventSchema = z.object({
   name: z.string().min(1),
-  date: z.string().datetime(),
-  venue: z.string().min(1),
+  start_time: z.string().datetime(),
+  end_time: z.string().datetime(),
+  venue_name: z.string().min(1),
   capacity: z.number().int().positive(),
 });
 
@@ -32,7 +33,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  // TODO: implement createEvent
   const event = await createEvent(parsed.data);
   return NextResponse.json(event, { status: 201 });
 }

@@ -3,12 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Event } from "@tix-seven/types";
 
 export default function EventCard({ event }: { event: Event }) {
-  const date = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(event.date));
-  const month = new Intl.DateTimeFormat(undefined, { month: "short" }).format(new Date(event.date));
-  const day = new Intl.DateTimeFormat(undefined, { day: "numeric" }).format(new Date(event.date));
+  const date = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(event.start_time));
+  const month = new Intl.DateTimeFormat(undefined, { month: "short" }).format(new Date(event.start_time));
+  const day = new Intl.DateTimeFormat(undefined, { day: "numeric" }).format(new Date(event.start_time));
 
   return (
-    <Link href={`/events/${event.id}`}>
+    <Link href={`/events/${event.event_id}`}>
       <Card className="hover:shadow-md transition-shadow duration-150 cursor-pointer h-full flex flex-col">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">
@@ -21,7 +21,7 @@ export default function EventCard({ event }: { event: Event }) {
         </CardHeader>
         <CardContent className="flex flex-col gap-3 flex-1 justify-between">
           <div className="text-sm text-muted-foreground flex flex-col gap-0.5">
-            <span>{event.venue}</span>
+            <span>{event.venue_name}</span>
             <time suppressHydrationWarning className="text-xs">{date}</time>
           </div>
           <div className="flex flex-col gap-1.5">
