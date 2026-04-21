@@ -77,8 +77,6 @@ class MOSIPAdapter(Protocol):
 class RealMOSIPAdapter:
     """
     Calls the MOSIP IDA yes/no auth endpoint using the mosip-auth-sdk.
-
-    QR payload format expected: "<UIN>|<dob>"  e.g. "5408602380|1997/09/12"
     Adjust the parser below to match whatever the GM861S scanner outputs.
     """
 
@@ -89,10 +87,12 @@ class RealMOSIPAdapter:
         if not qr_payload or not qr_payload.strip():
             return VerificationResult(verified=False, uin=None)
 
+        # splits "UIN and the demographical content of the QR payload"
         uin, demographics = self._parse_qr(qr_payload)
         if uin is None or demographics is None:
             return VerificationResult(verified=False, uin=None)
 
+        ## Calls upon the MOSIP sdk
         response = self._authenticator.auth(
             individual_id=uin,
             individual_id_type="UIN",
@@ -107,8 +107,7 @@ class RealMOSIPAdapter:
         """
         Parse the raw QR string into a UIN + DemographicsModel.
 
-        Current format: "UIN|DOB"  e.g. "5408602380|1997/09/12"
-        Update this method when the actual PhilSys QR format is confirmed.
+        Update this method to adhere to the QR format 
         """
         parts = qr_payload.strip().split("|")
         if len(parts) < 2:
