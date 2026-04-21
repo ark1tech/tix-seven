@@ -100,20 +100,30 @@ class RealMOSIPAdapter:
             consent=True,
         )
         body = response.json()
+        """
+        Given a UIN and some demographic data, MOSIP returns:
+        - authStatus: true  -> "YES, this person is who they claim to be"
+        - authStatus: false -> "NO, the data does not match"
+        """
         auth_status: bool = body.get("response", {}).get("authStatus", False)
+
         return VerificationResult(verified=auth_status, uin=uin if auth_status else None)
 
     def _parse_qr(self, qr_payload: str) -> tuple[Optional[str], Optional[DemographicsModel]]:
         """
-        Parse the raw QR string into a UIN + DemographicsModel.
+        Temporary mock parser for testbed validation.
 
-        Update this method to adhere to the QR format 
+        Replace MOCK_UIN and MOCK_DEMOGRAPHICS with values from your
+        scanner payload format once the QR contract is finalized.
         """
-        parts = qr_payload.strip().split("|")
-        if len(parts) < 2:
+        if not qr_payload or not qr_payload.strip():
             return None, None
-        uin, dob = parts[0].strip(), parts[1].strip()
-        return uin, DemographicsModel(dob=dob)
+
+        # Temporary testbed values. Update these fields for your MOSIP test data.
+        mock_uin = "5408602380"
+        mock_demographics = DemographicsModel(dob="1997/09/12")
+
+        return mock_uin, mock_demographics
 
 
 class StubMOSIPAdapter:
