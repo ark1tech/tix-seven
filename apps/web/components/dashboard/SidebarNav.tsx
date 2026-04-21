@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, MonitorPlay } from "lucide-react";
+import { CalendarDays, MonitorPlay, Ticket, PanelLeftClose, PanelLeft, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
 const links = [
   { href: "/events", label: "Events", icon: CalendarDays },
@@ -12,26 +14,94 @@ const links = [
 
 export default function SidebarNav() {
   const pathname = usePathname();
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
   return (
-    <nav className="flex flex-col gap-1">
-      {links.map(({ href, label, icon: Icon }) => {
-        const active = pathname.startsWith(href);
-        return (
-          <Link
-            key={href}
-            href={href}
+    <aside
+      className={cn(
+        "sticky top-3 flex shrink-0 flex-col rounded-xl bg-sidebar shadow-sm transition-all duration-300 ease-in-out px-4 py-4 overflow-hidden outline-none border-0",
+        isCollapsed ? "w-[72px]" : "w-56"
+      )}
+      style={{ height: "calc(100dvh - 24px)" }}
+    >
+      {/* Top Header */}
+      <div className="flex items-center shrink-0 mb-6 h-10 relative w-full">
+        <div
+          className={cn(
+            "flex items-center gap-2 overflow-hidden transition-all duration-300 absolute left-0 h-10",
+            isCollapsed ? "w-0 opacity-0" : "w-[150px] opacity-100"
+          )}
+        >
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground ml-1">
+            <Ticket className="h-4 w-4" />
+          </div>
+          <span className="text-sm font-semibold tracking-tight whitespace-nowrap">TixSeven</span>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute right-0 h-10 w-10 text-muted-foreground hover:bg-muted/80 hover:text-foreground shrink-0 transition-transform duration-300"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+        >
+          {isCollapsed ? <PanelLeft className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+        </Button>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex flex-col gap-1 overflow-x-hidden">
+        {links.map(({ href, label, icon: Icon }) => {
+          const active = pathname.startsWith(href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                "flex items-center rounded-md px-3 h-10 text-sm font-medium transition-colors duration-150 overflow-hidden shrink-0",
+                active
+                  ? "bg-primary/10 text-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                isCollapsed ? "w-10 gap-0" : "w-full gap-3"
+              )}
+              title={isCollapsed ? label : undefined}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span
+                className={cn(
+                  "whitespace-nowrap overflow-hidden transition-all duration-300",
+                  isCollapsed ? "w-0 opacity-0" : "w-[120px] opacity-100"
+                )}
+              >
+                {label}
+              </span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Bottom Actions */}
+      <div className="mt-auto">
+        <form action="/api/auth/signout" method="post">
+          <Button
+            variant="ghost"
             className={cn(
-              "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              active
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              "text-muted-foreground hover:text-foreground transition-all duration-300 overflow-hidden text-sm font-medium h-10 shrink-0 flex items-center justify-start px-3",
+              isCollapsed ? "w-10 gap-0" : "w-full gap-3"
             )}
+            type="submit"
+            title={isCollapsed ? "Sign out" : undefined}
           >
-            <Icon className="h-4 w-4 shrink-0" />
-            {label}
-          </Link>
-        );
-      })}
-    </nav>
+            <LogOut className="h-4 w-4 shrink-0" />
+            <span
+              className={cn(
+                "whitespace-nowrap overflow-hidden transition-all duration-300",
+                isCollapsed ? "w-0 opacity-0" : "w-[120px] opacity-100"
+              )}
+            >
+              Sign out
+            </span>
+          </Button>
+        </form>
+      </div>
+    </aside>
   );
 }
