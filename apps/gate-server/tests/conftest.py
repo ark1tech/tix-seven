@@ -8,8 +8,28 @@ from app.routers.verify import get_verification_service
 from app.services.verification import VerificationService
 
 
+class FakeSession:
+    def scalar(self, _stmt):
+        return None
+
+    def execute(self, _stmt):
+        class _Result:
+            rowcount = 0
+
+        return _Result()
+
+    def add(self, _obj):
+        return None
+
+    def commit(self):
+        return None
+
+    def rollback(self):
+        return None
+
+
 def _stub_service():
-    return VerificationService(mosip=StubMOSIPAdapter())
+    return VerificationService(db=FakeSession(), mosip=StubMOSIPAdapter())
 
 
 @pytest.fixture
