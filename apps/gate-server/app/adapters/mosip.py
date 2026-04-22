@@ -178,3 +178,16 @@ class StubMOSIPAdapter:
             return VerificationResult(verified=False, uin=None)
         mock_uin = qr_payload.strip()[:16]
         return VerificationResult(verified=True, uin=mock_uin)
+
+# class StubMOSIPAdapter:
+#     """Used in tests and local dev without WireGuard access."""
+ 
+#     # Hardcoded PSUT that matches the DEV_PSUT constant in verification.py.
+
+#     _STUB_PSUT = "DEV_PSUT"
+ 
+#     def verify(self, qr_payload: str) -> VerificationResult:
+#         if not qr_payload or not qr_payload.strip():
+#             return VerificationResult(verified=False, uin=None, psut=None)
+#         mock_uin = qr_payload.strip()[:16]
+#         return VerificationResult(verified=True, uin=mock_uin, psut=self._STUB_PSUT)

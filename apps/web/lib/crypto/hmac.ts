@@ -1,6 +1,12 @@
 const encoder = new TextEncoder();
 
-export async function hashUIN(uin: string): Promise<string> {
+function toHex(buffer: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+export async function hashPSUT(psut: string, eventID: string): Promise<string> {
   const pepper = process.env.HMAC_PEPPER;
   if (!pepper) throw new Error("HMAC_PEPPER is not set");
 
@@ -12,13 +18,13 @@ export async function hashUIN(uin: string): Promise<string> {
     ["sign"]
   );
 
+  const message = `${psut}:${eventID}`;
+
   const signature = await crypto.subtle.sign(
     "HMAC",
     key,
-    encoder.encode(uin)
+    encoder.encode(message)
   );
 
-  return Array.from(new Uint8Array(signature))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  return toHex(signature);
 }

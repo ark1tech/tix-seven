@@ -6,7 +6,7 @@ import uuid
 
 from app.db.base import Base
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from app.models.event import Event
@@ -28,7 +28,7 @@ class EventTicketLink(Base):
 
     # Relationships
     event: Mapped["Event"] = relationship("Event", back_populates="ticket_links")
-    ticket: Mapped["Ticket"] = relationship(
+    ticket: Mapped[Optional["Ticket"]] = relationship(
         "Ticket", back_populates="ticket_link", uselist=False
     )
 

@@ -1,21 +1,52 @@
-from enum import Enum
 from typing import Literal, Optional
-from pydantic import BaseModel
-
-
-class DenialReason(str, Enum):
-    invalid_id = "invalid_id"
-    no_ticket = "no_ticket"
-    already_used = "already_used"
-    wrong_event = "wrong_event"
+import uuid
+from pydantic import BaseModel, ConfigDict
+from app.models.enums import DenialReasonEnum, ResultEnum
 
 
 class VerifyRequest(BaseModel):
+    """
+    Incoming payload from the ESP8266 after a QR scan.
+    """
+
     qr_payload: str
     gate_id: str
 
 
 class VerifyResponse(BaseModel):
+    """
+    Response sent back to the ESP8266.
+    """
+
     result: Literal["grant", "deny"]
-    ticket_id: Optional[str] = None
-    reason: Optional[DenialReason] = None
+    ticket_id: Optional[str] = None            # Populated only on "grant"
+    reason: Optional[DenialReasonEnum] = None  # Populated only on "deny"
+
+
+class VerifyContext(BaseModel):
+    """
+    Mutable pipeline state threaded through each verification phase.
+
+    All Optional fields start as None and are set only if the corresponding phase completes successfully.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_assignment=True,
+        arbitrary_types_allowed=False,
+    )
+
+    qr_payload: str
+    gate_id: str
+
+    event_id: Optional[uuid.UUID] = None
+    assignment_id: Optional[uuid.UUID] = None
+    uin: Optional[str] = None
+    psut: Optional[str] = None
+    link_hash: Optional[str] = None
+    link_id: Optional[uuid.UUID] = None
+    ticket_id: Optional[uuid.UUID] = None
+
+    result: Optional[ResultEnum] = None
+    denial_reason: Optional[DenialReasonEnum] = None
+    response: Optional["VerifyResponse"] = None
