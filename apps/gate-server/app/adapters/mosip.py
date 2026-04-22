@@ -59,7 +59,7 @@ def _make_authenticator() -> MOSIPAuthenticator:
 class VerificationResult:
     verified: bool
     uin: Optional[str]
-
+    psut: Optional[str]  # returned as "authToken"
 
 class MOSIPAdapter(Protocol):
     """
@@ -92,12 +92,12 @@ class RealMOSIPAdapter:
 
     def verify(self, qr_payload: str) -> VerificationResult:
         if not qr_payload or not qr_payload.strip():
-            return VerificationResult(verified=False, uin=None)
+            return VerificationResult(verified=False, uin=None, psut=None)
 
         # splits "UIN and the demographical content of the QR payload"
         uin, demographics = self._parse_qr(qr_payload)
         if uin is None or demographics is None:
-            return VerificationResult(verified=False, uin=None)
+            return VerificationResult(verified=False, uin=None, psut=None)
 
         ## Calls upon the MOSIP sdk
         response = self._authenticator.auth(
@@ -106,16 +106,25 @@ class RealMOSIPAdapter:
             demographic_data=demographics,
             consent=True,
         )
-        body = response.json()
+
         """
         Given a UIN and some demographic data, MOSIP returns:
         - authStatus: true  -> "YES, this person is who they claim to be"
         - authStatus: false -> "NO, the data does not match"
+
+        - authToken: PSUT
+    
         """
-        auth_status: bool = body.get("response", {}).get("authStatus", False)
+        decrypted = self._authenticator.decrypt_response(response.json())
+        inner = decrypted.get("response", {})
+
+        auth_status: bool = inner.get("authStatus", False)
+        psut: Optional[str] = inner.get("authToken") if auth_status else None
 
         return VerificationResult(
-            verified=auth_status, uin=uin if auth_status else None
+            verified=auth_status,
+            uin=uin if auth_status else None,
+            psut=psut,
         )
 
     def _parse_qr(
@@ -172,22 +181,13 @@ class RealMOSIPAdapter:
 
 class StubMOSIPAdapter:
     """Used in tests and local dev without WireGuard access."""
+ 
+    # Hardcoded PSUT that matches the DEV_PSUT constant in verification.py.
 
+    _STUB_PSUT = "DEV_PSUT"
+ 
     def verify(self, qr_payload: str) -> VerificationResult:
         if not qr_payload or not qr_payload.strip():
-            return VerificationResult(verified=False, uin=None)
+            return VerificationResult(verified=False, uin=None, psut=None)
         mock_uin = qr_payload.strip()[:16]
-        return VerificationResult(verified=True, uin=mock_uin)
-
-# class StubMOSIPAdapter:
-#     """Used in tests and local dev without WireGuard access."""
- 
-#     # Hardcoded PSUT that matches the DEV_PSUT constant in verification.py.
-
-#     _STUB_PSUT = "DEV_PSUT"
- 
-#     def verify(self, qr_payload: str) -> VerificationResult:
-#         if not qr_payload or not qr_payload.strip():
-#             return VerificationResult(verified=False, uin=None, psut=None)
-#         mock_uin = qr_payload.strip()[:16]
-#         return VerificationResult(verified=True, uin=mock_uin, psut=self._STUB_PSUT)
+        return VerificationResult(verified=True, uin=mock_uin, psut=self._STUB_PSUT)
