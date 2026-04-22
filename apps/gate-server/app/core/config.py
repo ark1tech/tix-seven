@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_service_role_key: str
     hmac_pepper: str
-    # gate_api_key: str
+    gate_api_key: str
     database_url: str
 
     # MOSIP credentials must come from environment variables / .env
