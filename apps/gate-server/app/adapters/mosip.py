@@ -115,6 +115,9 @@ class RealMOSIPAdapter:
         - authToken: PSUT
     
         """
+
+        # TODO: VERIFY. From my understanding, kahit sa yes / no API call may PSUT token?
+    
         decrypted = self._authenticator.decrypt_response(response.json())
         inner = decrypted.get("response", {})
 

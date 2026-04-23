@@ -15,6 +15,7 @@ def hash_psut(psut: str, event_id: str) -> str:
     purchase (Phase 0) and recomputed at gate scan time (Phase 2) to look
     up the binding without ever persisting the PSUT itself.
     """
+
     return hmac.new(
         settings.hmac_pepper.encode(),
         (psut + ":" + event_id).encode(),

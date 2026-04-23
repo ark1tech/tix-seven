@@ -30,6 +30,10 @@ class AssignmentStatusEnum(str, enum.Enum):
 
 
 class DenialReasonEnum(str, enum.Enum):
+    # Phase 2, Step 1: Gate (assignment) not valid
+    INVALID_GATE_ID = "INVALID_GATE_ID"
+    INVALID_GATE_ASSIGNMENT = "INVALID_GATE_ASSIGNMENT"
+
     # Phase 2, Step 3: MOSIP verification failure
     IDENTITY_NOT_VERIFIED = "IDENTITY_NOT_VERIFIED"
     

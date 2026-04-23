@@ -1,13 +1,13 @@
 from app.adapters.mosip import MOSIPAdapter, RealMOSIPAdapter
 from app.core.crypto import hash_psut
 from app.models.enums import (
-    AssignmentStatusEnum,  # Fix: was used in _get_active_assignment but never imported
+    AssignmentStatusEnum,
     DenialReasonEnum,
     ResultEnum,
     TicketStatusEnum,
 )
 from app.models.event_ticket_link import EventTicketLink
-from app.models.gate import Gate, GateAssignment
+from app.models.gate import GateAssignment
 from app.models.log import Log
 from app.models.schemas import VerifyContext, VerifyResponse
 from app.models.ticket import Ticket
@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session
 import uuid
 
 # Hardcoded PSUT used in place of a real MOSIP-issued token during development.
-# Replace with mosip_result.psut once the MOSIP adapter returns it.
 DEV_PSUT = "DEV_PSUT"
 
 
@@ -37,12 +36,12 @@ class VerificationService:
 
         try:
             context = self._resolve_gate(context)     # Pipeline Phase 2, Step 1
-            context = self._verify_identity(context)  # Pipeline Phase 2, Steps 2-3
-            context = self._resolve_ticket(context)   # Pipeline Phase 2, Steps 4-6
+            context = self._verify_identity(context)  # Pipeline Phase 2, Steps 2-4
+            context = self._resolve_ticket(context)   # Pipeline Phase 2, Steps 5-6
             context = self._grant(context)            # Pipeline Phase 2, Step 7
 
         except Exception:
-            # Catch both controlled denials (raised by _deny) and unexpected errors.
+            # Catch both controlled denials raised by _deny and unexpected errors.
 
             if context.result is None:
                 # Treat unhandled exception before result was assigned as an error.
@@ -80,33 +79,35 @@ class VerificationService:
 
     def _resolve_gate(self, ctx: VerifyContext) -> VerifyContext:
         gate_uuid = self._to_uuid(ctx.gate_id)
+
         if gate_uuid is None:
             # Malformed gate_id is a system/configuration fault, not a wrong event.
             return self._deny(
-                ctx, DenialReasonEnum.INTERNAL_SERVER_ERROR, "DENY_INVALID_GATE"
+                ctx, DenialReasonEnum.INVALID_GATE_ID, "DENY_INVALID_GATE_ID"
             )
 
         assignment = self._get_active_assignment(gate_uuid)
 
         if assignment is None:
-            # No active GateAssignment found for this gate. The gate may be offline
-            # or not yet assigned to an event.
-            return self._deny(ctx, DenialReasonEnum.WRONG_EVENT, "DENY_NO_ASSIGNMENT")
+            # No active GateAssignment found for this gate. The gate may be offline or not yet assigned to an event.
+            return self._deny(ctx, DenialReasonEnum.INVALID_GATE_ASSIGNMENT, "DENY_INVALID_GATE_ASSIGNMENT")
 
         ctx.assignment_id, ctx.event_id = assignment
+
         return ctx
 
     # ------------------------------------------------------------------
-    # Pipeline Phase 2, Steps 2-3
+    # Pipeline Phase 2, Steps 2-4
 
-    # The UIN extracted from the QR payload is forwarded to MOSIP.
+    # The server forwards the UIN to the MOSIP Testbed for validation.
 
-    # On success, MOSIP returns a PSUT that is pseudonymous and scoped to this partner.
+    # If verification succeeds, MOSIP returns the corresponding PSUT for the identity and proceeds to Step 3.
     # ------------------------------------------------------------------
 
     def _verify_identity(self, ctx: VerifyContext) -> VerifyContext:
         mosip_result = self.mosip.verify(ctx.qr_payload)
 
+        # Otherwise, the server commits a denied result in the Log table and issues a “DENY” command to the ESP8266.
         if not mosip_result.verified or not mosip_result.uin:
             return self._deny(
                 ctx, DenialReasonEnum.IDENTITY_NOT_VERIFIED, "DENY_IDENTITY"
@@ -118,20 +119,20 @@ class VerificationService:
         # ctx.psut = mosip_result.psut
 
         # Compute the link hash now that both PSUT and event_id are known.
-        # link_hash = HMAC-SHA256(pepper, "psut:event_id")
-
+        # link_hash = HMAC-SHA256(pepper, "{psut}:{event_id}")
         ctx.link_hash = hash_psut(ctx.psut, str(ctx.event_id))
 
         return ctx
 
     # ------------------------------------------------------------------
-    # Pipeline Phase 2, Steps 4-6
+    # Pipeline Phase 2, Steps 5-6
 
     # The server queries the EventTicketLink table for a record matching the recomputed link_hash, then validates the associated ticket.
     # ------------------------------------------------------------------
 
     def _resolve_ticket(self, ctx: VerifyContext) -> VerifyContext:
         link = self._find_link(ctx.event_id, ctx.link_hash)
+
         if link is None:
             return self._deny(
                 ctx, DenialReasonEnum.LINK_NOT_FOUND, "DENY_LINK_NOT_FOUND"
@@ -140,6 +141,7 @@ class VerificationService:
         ctx.link_id = link.link_id
 
         ticket = self._find_ticket(ctx.link_id)
+
         if ticket is None:
             return self._deny(
                 ctx, DenialReasonEnum.TICKET_NOT_FOUND, "DENY_TICKET_NOT_FOUND"
@@ -147,17 +149,17 @@ class VerificationService:
 
         if ticket.status == TicketStatusEnum.USED:
             return self._deny(
-                ctx, DenialReasonEnum.TICKET_ALREADY_USED, "DENY_ALREADY_USED"
+                ctx, DenialReasonEnum.TICKET_ALREADY_USED, "DENY_TICKET_ALREADY_USED"
             )
 
         ctx.ticket_id = ticket.ticket_id
+
         return ctx
 
     # ------------------------------------------------------------------
-    # Pipeline Phase 2, Step 7 - Atomic ticket mark-as-used
+    # Pipeline Phase 2, Step 7
     #
-    # The UPDATE is conditional on status = UNUSED so that a race between
-    # two concurrent scans of the same ticket can only succeed once.
+    # The UPDATE is conditional on status = UNUSED so that a race between two concurrent scans of the same ticket can only succeed once.
     # ------------------------------------------------------------------
 
     def _grant(self, ctx: VerifyContext) -> VerifyContext:
@@ -167,10 +169,12 @@ class VerificationService:
             return self._deny(ctx, DenialReasonEnum.TICKET_ALREADY_USED, "DENY_RACE")
 
         ctx.result = ResultEnum.GRANTED
+
         ctx.response = VerifyResponse(
             result="grant",
             ticket_id=str(ctx.ticket_id),
         )
+
         return ctx
 
     # ------------------------------------------------------------------
@@ -182,18 +186,18 @@ class VerificationService:
 
         if gate_uuid is None:
             # Cannot write a meaningful log without a valid gate_id.
-            return
+            return  # MAYBE TODO: Handle better?
 
         if ctx.event_id is None:
-            # If gate resolution failed before event_id was populated we cannot log.
-            return
+            # Cannot log if gate resolution failed before event_id was populated.
+            return  # MAYBE TODO: Handle better?
 
         self.db.add(
             Log(
                 event_id=ctx.event_id,
                 gate_id=gate_uuid,
                 assignment_id=ctx.assignment_id,
-                ticket_id=ctx.ticket_id,          # Null for pre-ticket failures
+                ticket_id=ctx.ticket_id,  # Null for pre-ticket failures
                 result=ctx.result,
                 denial_reason=ctx.denial_reason,
                 timestamp=func.now(),
@@ -223,15 +227,12 @@ class VerificationService:
         Return (assignment_id, event_id) for the gate's current active assignment, or None.
         """
 
-        stmt = (
-            select(GateAssignment.assignment_id, Gate.event_id)
-            .join(Gate, Gate.gate_id == GateAssignment.gate_id)
-            .where(
-                GateAssignment.gate_id == gate_id,
-                GateAssignment.status
-                == AssignmentStatusEnum.ACTIVE,  # Fix: now imported
-            )
-            .limit(1)
+        stmt = select(
+            GateAssignment.assignment_id,
+            GateAssignment.event_id,
+        ).where(
+            GateAssignment.gate_id == gate_id,
+            GateAssignment.status == AssignmentStatusEnum.ACTIVE,
         )
 
         return self.db.execute(stmt).first()
@@ -240,7 +241,7 @@ class VerificationService:
         """
         Look up the EventTicketLink by event and hash.
         """
-    
+
         stmt = (
             select(EventTicketLink)
             .where(
@@ -249,6 +250,7 @@ class VerificationService:
             )
             .limit(1)
         )
+
         return self.db.scalar(stmt)
 
     def _find_ticket(self, link_id: uuid.UUID) -> Ticket | None:
@@ -257,12 +259,13 @@ class VerificationService:
         """
 
         stmt = select(Ticket).where(Ticket.link_id == link_id).limit(1)
+
         return self.db.scalar(stmt)
 
     def _mark_used(self, ticket_id: uuid.UUID) -> bool:
         """
         Atomically mark a ticket as used. The WHERE clause on status = UNUSED ensures only one concurrent request can succeed even under a race condition.
-        
+
         Returns True if a row was updated, False if the ticket was already used.
         """
 
