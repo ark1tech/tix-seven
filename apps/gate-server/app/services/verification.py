@@ -7,7 +7,7 @@ from app.models.enums import (
     TicketStatusEnum,
 )
 from app.models.event_ticket_link import EventTicketLink
-from app.models.gate import GateAssignment
+from app.models.gate_assignment import GateAssignment
 from app.models.log import Log
 from app.models.schemas import VerifyContext, VerifyResponse
 from app.models.ticket import Ticket
@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 import uuid
 
 # Hardcoded PSUT used in place of a real MOSIP-issued token during development.
-DEV_PSUT = "DEV_PSUT"
+# DEV_PSUT = "DEV_PSUT"
 
 
 class VerificationService:
@@ -115,8 +115,8 @@ class VerificationService:
 
         ctx.uin = mosip_result.uin
 
-        ctx.psut = DEV_PSUT
-        # ctx.psut = mosip_result.psut
+        # ctx.psut = DEV_PSUT
+        ctx.psut = mosip_result.psut
 
         # Compute the link hash now that both PSUT and event_id are known.
         # link_hash = HMAC-SHA256(pepper, "{psut}:{event_id}")
