@@ -101,7 +101,7 @@ class VerificationService:
 
     # The server forwards the UIN to the MOSIP Testbed for validation.
 
-    # If verification succeeds, MOSIP returns the corresponding PSUT for the identity and proceeds to Step 3.
+    # If verification succeeds, MOSIP returns the PSUT for the identity, and then the system computes the link_hash.
     # ------------------------------------------------------------------
 
     def _verify_identity(self, ctx: VerifyContext) -> VerifyContext:
@@ -164,6 +164,7 @@ class VerificationService:
 
     def _grant(self, ctx: VerifyContext) -> VerifyContext:
         updated = self._mark_used(ctx.ticket_id)
+
         if not updated:
             # Another request marked the ticket used between our read and this write.
             return self._deny(ctx, DenialReasonEnum.TICKET_ALREADY_USED, "DENY_RACE")
