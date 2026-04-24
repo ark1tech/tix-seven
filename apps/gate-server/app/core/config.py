@@ -1,9 +1,13 @@
 from pathlib import Path
 from typing import Optional
+
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-_ROOT_ENV_FILE = Path(__file__).resolve().parents[4] / ".env"
+# `config.py` is at apps/gate-server/app/core/config.py → parents[2] is apps/gate-server
+_GATE_SERVER_DIR = Path(__file__).resolve().parents[2]
+_ROOT_ENV_FILE = _GATE_SERVER_DIR / ".env"
 
 
 class Settings(BaseSettings):

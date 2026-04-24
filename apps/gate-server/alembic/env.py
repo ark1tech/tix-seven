@@ -1,8 +1,14 @@
 from logging.config import fileConfig
+from pathlib import Path
 
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 
 from alembic import context
+
+# `alembic` is run from any cwd; load apps/gate-server/.env before Settings().
+_gate_server_root = Path(__file__).resolve().parent.parent
+load_dotenv(_gate_server_root / ".env", override=False)
 
 from app.db.base import Base
 from app.models import *
