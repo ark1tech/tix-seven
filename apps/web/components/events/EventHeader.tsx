@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+import { IssueTicketButton } from "@/components/tickets/IssueTicketButton";
 import { cn } from "@/lib/utils";
 import type { Event } from "@tix-seven/types";
 
@@ -79,6 +80,7 @@ export default function EventHeader({ event }: Props) {
               >
                 Live Entry Log
               </Link>
+              <IssueTicketButton eventId={event.event_id} />
             </>
           )}
         </div>
