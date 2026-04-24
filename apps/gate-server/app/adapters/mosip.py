@@ -8,12 +8,38 @@ from mosip_auth_sdk.models import DemographicsModel
 
 from app.core.config import settings
 
-# Credential files live next to this package, one level up from app/
+# Credential files live under apps/gate-server/credentials/ (sibling to app/)
 _CREDS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "credentials")
+_MOSIP_CREDENTIAL_FILES = (
+    "pdec_ida_partner.pem",
+    "keystore.p12",
+    "keystore-signed.p12",
+)
+
+
+def _require_mosip_credential_files() -> None:
+    """
+    Fail fast with a clear message before mosip_auth_sdk opens missing PEM/P12s.
+    """
+    missing = [
+        f
+        for f in _MOSIP_CREDENTIAL_FILES
+        if not os.path.isfile(os.path.join(_CREDS_DIR, f))
+    ]
+    if not missing:
+        return
+    dir_abs = os.path.abspath(_CREDS_DIR)
+    names = ", ".join(missing)
+    raise FileNotFoundError(
+        f"MOSIP credential file(s) missing: {names}. "
+        f"Copy the partner/testbed bundle into: {dir_abs} "
+        f"(see credentials/README.md in that folder)."
+    )
 
 
 def _make_authenticator() -> MOSIPAuthenticator:
     """Build a MOSIPAuthenticator from environment-backed settings."""
+    _require_mosip_credential_files()
     cfg_dict = {
         "mosip_auth": {
             "timestamp_format": "%Y-%m-%dT%H:%M:%S",

@@ -57,7 +57,7 @@ Open `.env` and fill in every value:
 | `HMAC_PEPPER` | 32-byte hex secret. **Must match `HMAC_PEPPER` in the web app `.env.local`.** Generate: `openssl rand -hex 32` |
 | `GATE_API_KEY` | Pre-shared key sent by ESP8266 in `X-Gate-Api-Key`. Generate: `openssl rand -hex 32` |
 
-MOSIP variables (`MOSIP_PARTNER_ID`, `MOSIP_PARTNER_APIKEY`, etc.) are optional for local development — the service runs with a stub adapter when they are absent. See [MOSIP Credentials](#mosip-credentials) below.
+For end-to-end MOSIP (issue ticket / verify), you need both **MOSIP env vars in `.env`** and the **three credential files** under `credentials/`; tests inject `StubMOSIPAdapter` only. See [MOSIP Credentials](#mosip-credentials) below.
 
 ### 4. Run database migrations
 
@@ -267,11 +267,9 @@ Denial reasons:
 
 ## MOSIP Credentials
 
-The `RealMOSIPAdapter` requires credential files and environment variables to call the MOSIP IDA endpoint. For local development these are not needed — the `StubMOSIPAdapter` is used automatically when MOSIP env vars are absent.
+`RealMOSIPAdapter` (the default in production) calls the MOSIP IDA testbed; it does **not** fall back to a stub. You need **all** of the following.
 
-When integrating with a real MOSIP environment:
-
-1. Place credential files in `credentials/` (next to `app/`):
+1. Place credential files in `credentials/` (sibling to `app/` — see `credentials/README.md`):
    - `pdec_ida_partner.pem` — IDA partner encryption certificate
    - `keystore.p12` — key store (used for both encryption and signing)
    - `keystore-signed.p12` — signing key store
