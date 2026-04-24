@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal, Optional
 import uuid
 from pydantic import BaseModel, ConfigDict
@@ -50,3 +51,15 @@ class VerifyContext(BaseModel):
     result: Optional[ResultEnum] = None
     denial_reason: Optional[DenialReasonEnum] = None
     response: Optional["VerifyResponse"] = None
+
+
+class IssueRequest(BaseModel):
+    qr_payload: str
+    event_id: uuid.UUID
+
+
+class IssueResponse(BaseModel):
+    ticket_id: uuid.UUID
+    link_id: uuid.UUID
+    status: Literal["UNUSED"]
+    created_at: datetime

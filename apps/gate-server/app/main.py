@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.db.session import engine
-from app.routers import health, verify
+from app.routers import health, issue, verify
 
 logger = logging.getLogger(__name__)
 
@@ -35,3 +35,4 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(verify.router)
+app.include_router(issue.router)
