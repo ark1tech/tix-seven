@@ -2,6 +2,15 @@ export type TicketStatus = "UNUSED" | "USED";
 export type GateStatus = "ONLINE" | "OFFLINE";
 export type LogResult = "GRANTED" | "DENIED" | "TIMEOUT" | "ERROR";
 
+/** Aligned to `public.denial_reason` in Postgres. Mock data may use other short strings. */
+export type DenialReason =
+  | "IDENTITY_NOT_VERIFIED"
+  | "LINK_NOT_FOUND"
+  | "TICKET_NOT_FOUND"
+  | "TICKET_ALREADY_USED"
+  | "SERVER_TIMEOUT"
+  | "INTERNAL_SERVER_ERROR";
+
 export interface Event {
   event_id: string;
   venue_id: string;
@@ -36,7 +45,8 @@ export interface Log {
   gate_id: string;
   ticket_id: string | null;
   result: LogResult;
-  reason: string | null;
+  /** `public.log.denial_reason` (enum) or `mock.log.reason` (free text) in debug */
+  denial_reason: string | null;
   timestamp: string;
 }
 
@@ -44,4 +54,12 @@ export interface EventStats {
   sold: number;
   scanned: number;
   denied: number;
+}
+
+/** Result of gate-server `POST /tickets/issue` (registration). */
+export interface IssuedTicket {
+  ticket_id: string;
+  link_id: string;
+  status: "UNUSED";
+  created_at: string;
 }
