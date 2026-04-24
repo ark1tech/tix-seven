@@ -109,6 +109,8 @@ pytest -x
 The test suite covers:
 - `GET /health` returns `{"status":"ok","db":"ok"}`
 - `POST /verify` rejects requests missing the API key (403)
+- `POST /tickets/issue` rejects requests missing the API key (403)
+- `POST /tickets/issue` handles `identity_not_verified` and `already_issued`
 - Every denial branch: `invalid_id`, `no_ticket`, `already_used`, `wrong_event`
 - Grant path: marks ticket used, returns `ticket_id`
 
@@ -166,6 +168,20 @@ With a real DB but no `event_id` set on the gate row, expected:
 {"result":"deny","ticket_id":null,"reason":"wrong_event"}
 ```
 
+### Issue ticket
+
+```bash
+curl -X POST http://127.0.0.1:8000/tickets/issue \
+  -H "Content-Type: application/json" \
+  -H "X-Gate-Api-Key: YOUR_GATE_API_KEY" \
+  -d '{"qr_payload":"{\"uin\":\"123456789012\",\"name\":\"Sample User\"}","event_id":"<valid-event-uuid>"}'
+```
+
+Expected success:
+```json
+{"ticket_id":"<uuid>","link_id":"<uuid>","status":"UNUSED","created_at":"<timestamp>"}
+```
+
 ## Project Structure
 
 ```
@@ -191,14 +207,17 @@ gate-server/
 │   │   └── venue.py          # Venue ORM model
 │   ├── routers/
 │   │   ├── health.py         # GET /health
+│   │   ├── issue.py          # POST /tickets/issue (auth + DI wiring)
 │   │   └── verify.py         # POST /verify (auth + DI wiring)
 │   ├── services/
+│   │   ├── issuance.py       # IssuanceService — ticket registration flow
 │   │   └── verification.py   # VerificationService — core business logic
 │   └── main.py               # FastAPI app, middleware, router includes
 ├── alembic/                  # Alembic migration environment
 │   └── versions/             # Migration scripts
 ├── tests/
 │   ├── conftest.py           # Fixtures: FakeSession, StubMOSIPAdapter, TestClient
+│   ├── test_issue.py         # Ticket issuance endpoint/service tests
 │   └── test_verify.py        # Full endpoint test suite
 ├── .env.example              # Environment variable template
 ├── Dockerfile
@@ -262,6 +281,55 @@ Denial reasons:
 | `wrong_event` | `gate_id` is not a valid UUID or the gate has no event assigned |
 | `no_ticket` | No ticket found linking this attendee's UIN hash to this event |
 | `already_used` | Ticket exists but has already been scanned (status = `USED`) |
+
+**Response 403** — missing or invalid API key
+
+---
+
+### `POST /tickets/issue`
+
+Verifies a PhilSys QR payload and issues an event ticket for first-time registrations.
+
+**Headers**
+
+| Header | Required | Description |
+|---|---|---|
+| `X-Gate-Api-Key` | Yes | Pre-shared key matching `GATE_API_KEY` in `.env` |
+| `Content-Type` | Yes | `application/json` |
+
+**Request body**
+
+```json
+{
+  "qr_payload": "<raw PhilSys QR string>",
+  "event_id": "<event UUID>"
+}
+```
+
+**Response 201 — issued**
+```json
+{
+  "ticket_id": "<uuid>",
+  "link_id": "<uuid>",
+  "status": "UNUSED",
+  "created_at": "<ISO timestamp>"
+}
+```
+
+**Response 400** — identity verification failed
+```json
+{"detail":"identity_not_verified"}
+```
+
+**Response 404** — event not found
+```json
+{"detail":"event_not_found"}
+```
+
+**Response 409** — ticket already issued for this identity and event
+```json
+{"detail":"already_issued"}
+```
 
 **Response 403** — missing or invalid API key
 
