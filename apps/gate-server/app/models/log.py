@@ -64,7 +64,7 @@ class Log(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "(result = 'DENIED') = (denial_reason IS NOT NULL)",
+            "(result = 'GRANTED') = (denial_reason IS NULL)",
             name="check_denial_reason_consistency",
         ),
         Index("ix_log_event_id", "event_id"),
