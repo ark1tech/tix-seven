@@ -1,5 +1,8 @@
-from app.adapters.mosip import MOSIPAdapter, RealMOSIPAdapter
-from app.core.crypto import hash_psut
+import uuid
+
+from sqlalchemy import func, select, update
+from sqlalchemy.orm import Session
+
 from app.models.enums import (
     AssignmentStatusEnum,
     DenialReasonEnum,
@@ -11,18 +14,13 @@ from app.models.gate_assignment import GateAssignment
 from app.models.log import Log
 from app.models.schemas import VerifyContext, VerifyResponse
 from app.models.ticket import Ticket
-from sqlalchemy import func, select, update
-from sqlalchemy.orm import Session
-import uuid
-
-# Hardcoded PSUT used in place of a real MOSIP-issued token during development.
-# DEV_PSUT = "DEV_PSUT"
+from app.services.identity import IdentityService
 
 
 class VerificationService:
-    def __init__(self, db: Session, mosip: MOSIPAdapter | None = None):
+    def __init__(self, db: Session, identity: IdentityService | None = None):
         self.db = db
-        self.mosip = mosip or RealMOSIPAdapter()
+        self.identity = identity or IdentityService()
 
     def verify(self, qr_payload: str, gate_id: str) -> VerifyResponse:
         """
@@ -56,11 +54,15 @@ class VerificationService:
             self._write_log(context)
             self.db.commit()
 
+            assert context.response is not None
+
             return context.response
 
         # Happy path: log the granted result alongside the committed ticket update.
         self._write_log(context)
         self.db.commit()
+
+        assert context.response is not None
 
         return context.response
 
@@ -105,22 +107,23 @@ class VerificationService:
     # ------------------------------------------------------------------
 
     def _verify_identity(self, ctx: VerifyContext) -> VerifyContext:
-        mosip_result = self.mosip.verify(ctx.qr_payload)
+        verified = self.identity.verify(ctx.qr_payload)
 
-        # Otherwise, the server commits a denied result in the Log table and issues a “DENY” command to the ESP8266.
-        if not mosip_result.verified or not mosip_result.uin:
+        # Otherwise, the server commits a denied result in the Log table and issues a "DENY" command to the ESP8266.
+        if verified is None:
             return self._deny(
-                ctx, DenialReasonEnum.IDENTITY_NOT_VERIFIED, "DENY_IDENTITY"
+                ctx, DenialReasonEnum.IDENTITY_NOT_VERIFIED, "DENY_IDENTITY_NOT_VERIFIED"
             )
 
-        ctx.uin = mosip_result.uin
-
-        # ctx.psut = DEV_PSUT
-        ctx.psut = mosip_result.psut
+        ctx.uin = verified.uin
+        ctx.psut = verified.psut
 
         # Compute the link hash now that both PSUT and event_id are known.
         # link_hash = HMAC-SHA256(pepper, "{psut}:{event_id}")
-        ctx.link_hash = hash_psut(ctx.psut, str(ctx.event_id))
+
+        assert ctx.event_id is not None
+
+        ctx.link_hash = self.identity.compute_link_hash(ctx.psut, ctx.event_id)
 
         return ctx
 
@@ -131,6 +134,9 @@ class VerificationService:
     # ------------------------------------------------------------------
 
     def _resolve_ticket(self, ctx: VerifyContext) -> VerifyContext:
+        assert ctx.event_id is not None
+        assert ctx.link_hash is not None
+
         link = self._find_link(ctx.event_id, ctx.link_hash)
 
         if link is None:
@@ -158,11 +164,13 @@ class VerificationService:
 
     # ------------------------------------------------------------------
     # Pipeline Phase 2, Step 7
-    #
+
     # The UPDATE is conditional on status = UNUSED so that a race between two concurrent scans of the same ticket can only succeed once.
     # ------------------------------------------------------------------
 
     def _grant(self, ctx: VerifyContext) -> VerifyContext:
+        assert ctx.ticket_id is not None
+
         updated = self._mark_used(ctx.ticket_id)
 
         if not updated:
@@ -265,7 +273,8 @@ class VerificationService:
 
     def _mark_used(self, ticket_id: uuid.UUID) -> bool:
         """
-        Atomically mark a ticket as used. The WHERE clause on status = UNUSED ensures only one concurrent request can succeed even under a race condition.
+        Atomically mark a ticket as used. The WHERE clause on status = UNUSED
+        ensures only one concurrent request can succeed even under a race condition.
 
         Returns True if a row was updated, False if the ticket was already used.
         """

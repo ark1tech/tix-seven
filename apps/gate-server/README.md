@@ -328,7 +328,7 @@ Verifies a PhilSys QR payload and issues an event ticket for first-time registra
 
 **Response 409** — ticket already issued for this identity and event
 ```json
-{"detail":"already_issued"}
+{"detail":"ticket_already_issued"}
 ```
 
 **Response 403** — missing or invalid API key

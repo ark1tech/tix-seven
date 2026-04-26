@@ -73,5 +73,5 @@ def test_issuance_duplicate_link_hash_409() -> None:
     with pytest.raises(HTTPException) as exc_info:
         service.issue('{"uin":"X","name":"A"}', uuid.uuid4())
     assert exc_info.value.status_code == 409
-    assert exc_info.value.detail == "already_issued"
+    assert exc_info.value.detail == "ticket_already_issued"
     db.rollback.assert_called_once()
