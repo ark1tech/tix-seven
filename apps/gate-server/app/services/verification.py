@@ -1,4 +1,4 @@
-from app.adapters.mosip import MOSIPAdapter, RealMOSIPAdapter
+from app.adapters.mosip import MOSIPAdapter, MOSIPUnavailableError, RealMOSIPAdapter
 from app.core.crypto import hash_psut
 from app.models.enums import (
     AssignmentStatusEnum,
@@ -44,7 +44,7 @@ class VerificationService:
             # Catch both controlled denials raised by _deny and unexpected errors.
 
             if context.result is None:
-                # Treat unhandled exception before result was assigned as an error.
+                # Unhandled exception before result was assigned: log as ERROR with reason.
                 context.result = ResultEnum.ERROR
                 context.denial_reason = DenialReasonEnum.INTERNAL_SERVER_ERROR
                 context.response = VerifyResponse(
@@ -105,7 +105,10 @@ class VerificationService:
     # ------------------------------------------------------------------
 
     def _verify_identity(self, ctx: VerifyContext) -> VerifyContext:
-        mosip_result = self.mosip.verify(ctx.qr_payload)
+        try:
+            mosip_result = self.mosip.verify(ctx.qr_payload)
+        except MOSIPUnavailableError:
+            return self._deny(ctx, DenialReasonEnum.SERVER_TIMEOUT, "DENY_MOSIP_UNAVAILABLE")
 
         # Otherwise, the server commits a denied result in the Log table and issues a “DENY” command to the ESP8266.
         if not mosip_result.verified or not mosip_result.uin:

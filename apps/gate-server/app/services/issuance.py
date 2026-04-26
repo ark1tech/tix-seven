@@ -5,7 +5,11 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.adapters.mosip import MOSIPAdapter, RealMOSIPAdapter
+from app.adapters.mosip import (
+    MOSIPAdapter,
+    MOSIPUnavailableError,
+    RealMOSIPAdapter,
+)
 from app.core.crypto import hash_psut
 from app.models.enums import TicketStatusEnum
 from app.models.event import Event
@@ -20,7 +24,13 @@ class IssuanceService:
         self.mosip = mosip or RealMOSIPAdapter()
 
     def issue(self, qr_payload: str, event_id: uuid.UUID) -> IssueResponse:
-        result = self.mosip.verify(qr_payload)
+        try:
+            result = self.mosip.verify(qr_payload)
+        except MOSIPUnavailableError as exc:
+            raise HTTPException(
+                status_code=503, detail="mosip_unavailable"
+            ) from exc
+
         if not result.verified or result.psut is None:
             raise HTTPException(
                 status_code=400, detail="identity_not_verified"

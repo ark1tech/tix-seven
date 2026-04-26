@@ -44,8 +44,7 @@ class Log(Base):
         Enum(ResultEnum, name="log_result"), nullable=False
     )
 
-    # Populated only when result = DENIED
-    # Null for all other types of results
+    # Must be null when result = GRANTED; may be set for other non-granted results.
     denial_reason: Mapped[Optional[DenialReasonEnum]] = mapped_column(
         Enum(DenialReasonEnum, name="denial_reason"), nullable=True
     )

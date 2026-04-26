@@ -1,10 +1,13 @@
 import os
+import logging
 from dataclasses import dataclass
-from typing import Optional, Protocol
+from typing import Callable, Optional, Protocol
 
 from dynaconf import Dynaconf
+from mosip_auth_sdk._authenticator.utils import restutil as mosip_restutil
 from mosip_auth_sdk import MOSIPAuthenticator
 from mosip_auth_sdk.models import DemographicsModel
+from requests import RequestException
 
 from app.core.config import settings
 
@@ -15,6 +18,18 @@ _MOSIP_CREDENTIAL_FILES = (
     "keystore.p12",
     "keystore-signed.p12",
 )
+_auth_log = logging.getLogger("authenticator.log")
+_MOSIP_REQUEST_TIMEOUT_SECONDS = 60
+
+
+def _with_default_timeout(
+    request_func: Callable[..., object], timeout_seconds: int
+) -> Callable[..., object]:
+    def _wrapped(*args, **kwargs):
+        kwargs.setdefault("timeout", timeout_seconds)
+        return request_func(*args, **kwargs)
+
+    return _wrapped
 
 
 def _require_mosip_credential_files() -> None:
@@ -78,6 +93,10 @@ def _make_authenticator() -> MOSIPAuthenticator:
     }
     config = Dynaconf(settings_file=None)
     config.update(cfg_dict)
+    mosip_restutil.requests.post = _with_default_timeout(
+        mosip_restutil.requests.post,
+        timeout_seconds=_MOSIP_REQUEST_TIMEOUT_SECONDS,
+    )
     return MOSIPAuthenticator(config=config)
 
 
@@ -86,6 +105,10 @@ class VerificationResult:
     verified: bool
     uin: Optional[str]
     psut: Optional[str]  # returned as "authToken"
+
+
+class MOSIPUnavailableError(Exception):
+    """Raised when MOSIP cannot be reached or returns a transport-level error."""
 
 class MOSIPAdapter(Protocol):
     """
@@ -118,20 +141,44 @@ class RealMOSIPAdapter:
 
     def verify(self, qr_payload: str) -> VerificationResult:
         if not qr_payload or not qr_payload.strip():
+            _auth_log.info("verify skipped: empty_qr_payload")
             return VerificationResult(verified=False, uin=None, psut=None)
 
         # splits "UIN and the demographical content of the QR payload"
         uin, demographics = self._parse_qr(qr_payload)
         if uin is None or demographics is None:
+            _auth_log.info("verify skipped: invalid_qr_payload")
             return VerificationResult(verified=False, uin=None, psut=None)
 
         ## Calls upon the MOSIP sdk
-        response = self._authenticator.auth(
-            individual_id=uin,
-            individual_id_type="UIN",
-            demographic_data=demographics,
-            consent=True,
-        )
+        try:
+            _auth_log.info(
+                "verify start: calling mosip auth endpoint host=%s uin_suffix=%s",
+                settings.mosip_ida_domain_uri,
+                uin[-4:],
+            )
+            response = self._authenticator.auth(
+                individual_id=uin,
+                individual_id_type="UIN",
+                demographic_data=demographics,
+                consent=True,
+            )
+            _auth_log.info(
+                "verify request completed: status_code=%s",
+                response.status_code,
+            )
+        except RequestException as exc:
+            _auth_log.error(
+                "verify failed: mosip_or_network_fault error=%s",
+                repr(exc),
+            )
+            raise MOSIPUnavailableError("MOSIP auth request failed") from exc
+        except Exception as exc:
+            _auth_log.exception(
+                "verify failed: gate_server_fault unexpected_error=%s",
+                type(exc).__name__,
+            )
+            raise
 
         """
         Given a UIN and some demographic data, MOSIP returns:
@@ -149,6 +196,7 @@ class RealMOSIPAdapter:
 
         auth_status: bool = inner.get("authStatus", False)
         psut: Optional[str] = inner.get("authToken") if auth_status else None
+        _auth_log.info("verify response parsed: auth_status=%s", auth_status)
 
         return VerificationResult(
             verified=auth_status,
@@ -205,6 +253,7 @@ class RealMOSIPAdapter:
             return str(uin), demographics
 
         except json.JSONDecodeError:
+            _auth_log.warning("parse_qr failed: json_decode_error")
             return None, None
 
 

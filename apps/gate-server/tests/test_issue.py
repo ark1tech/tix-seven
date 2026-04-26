@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
 
-from app.adapters.mosip import StubMOSIPAdapter
+from app.adapters.mosip import MOSIPUnavailableError, StubMOSIPAdapter
 from app.main import app
 from app.models.schemas import IssueResponse
 from app.routers.issue import get_issuance_service
@@ -75,3 +75,18 @@ def test_issuance_duplicate_link_hash_409() -> None:
     assert exc_info.value.status_code == 409
     assert exc_info.value.detail == "already_issued"
     db.rollback.assert_called_once()
+
+
+def test_issuance_mosip_unavailable_503() -> None:
+    db = MagicMock()
+
+    class FailingMOSIPAdapter:
+        def verify(self, _qr_payload: str):
+            raise MOSIPUnavailableError("network timeout")
+
+    service = IssuanceService(db=db, mosip=FailingMOSIPAdapter())
+    with pytest.raises(HTTPException) as exc_info:
+        service.issue('{"uin":"X","name":"A"}', uuid.uuid4())
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail == "mosip_unavailable"
