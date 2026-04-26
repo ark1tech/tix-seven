@@ -67,7 +67,7 @@ class IssuanceService:
     # Pipeline Phase 0, Step 3-4
 
     # Forward the QR payload to the MOSIP Testbed and confirm the identity is valid and active.
-    # Both a verified flag and a non-null PSUT (and UIN) are needed to continue.
+    # Both a verified flag and a non-null PSUT are needed to continue.
     # ------------------------------------------------------------------
 
     def _verify_identity(self, ctx: IssueContext) -> IssueContext:
@@ -76,7 +76,6 @@ class IssuanceService:
         if verified is None:
             raise HTTPException(status_code=400, detail="identity_not_verified")
 
-        ctx.uin = verified.uin
         ctx.psut = verified.psut
 
         return ctx

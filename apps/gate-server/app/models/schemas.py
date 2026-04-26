@@ -100,7 +100,6 @@ class IssueContext(BaseModel):
     qr_payload: str
     event_id: uuid.UUID
 
-    uin: Optional[str] = None
     psut: Optional[str] = None
     link_hash: Optional[str] = None
     link_id: Optional[uuid.UUID] = None
