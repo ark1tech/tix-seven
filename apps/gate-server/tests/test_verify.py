@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from app.adapters.mosip import MOSIPUnavailableError
 from app.models.enums import DenialReasonEnum, ResultEnum, TicketStatusEnum
 from app.models.log import Log
+from app.services.identity import IdentityService
 from app.services.verification import VerificationService
 
 
@@ -181,7 +182,10 @@ def test_mosip_timeout_logs_server_timeout_not_internal_error() -> None:
         def verify(self, _qr_payload: str):
             raise MOSIPUnavailableError("Read timed out")
 
-    service = VerificationService(db=db, mosip=TimingOutMOSIP())
+    service = VerificationService(
+        db=db,
+        identity=IdentityService(mosip=TimingOutMOSIP()),
+    )
     response = service.verify('{"uin":"1234567890123456"}', str(uuid.uuid4()))
 
     assert response.result == "deny"

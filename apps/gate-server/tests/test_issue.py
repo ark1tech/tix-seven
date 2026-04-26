@@ -11,6 +11,7 @@ from app.adapters.mosip import MOSIPUnavailableError, StubMOSIPAdapter
 from app.main import app
 from app.models.schemas import IssueResponse
 from app.routers.issue import get_issuance_service
+from app.services.identity import IdentityService
 from app.services.issuance import IssuanceService
 
 
@@ -22,7 +23,16 @@ def test_issue_requires_api_key(client: TestClient):
     assert res.status_code == 403
 
 
-def test_issue_empty_qr_400(client: TestClient, auth_headers: dict):
+def test_issue_empty_qr_400(
+    client: TestClient, auth_headers: dict, monkeypatch: pytest.MonkeyPatch
+):
+    # FakeSession has no Event row; skip DB event resolution so we hit identity verification.
+    monkeypatch.setattr(
+        IssuanceService,
+        "_resolve_event",
+        lambda self, ctx: ctx,
+    )
+
     res = client.post(
         "/tickets/issue",
         json={"qr_payload": "", "event_id": str(uuid.uuid4())},
@@ -69,11 +79,13 @@ def test_issuance_duplicate_link_hash_409() -> None:
 
     db.flush = _flush
 
-    service = IssuanceService(db=db, mosip=StubMOSIPAdapter())
+    service = IssuanceService(
+        db=db, identity=IdentityService(mosip=StubMOSIPAdapter())
+    )
     with pytest.raises(HTTPException) as exc_info:
         service.issue('{"uin":"X","name":"A"}', uuid.uuid4())
     assert exc_info.value.status_code == 409
-    assert exc_info.value.detail == "already_issued"
+    assert exc_info.value.detail == "ticket_already_issued"
     db.rollback.assert_called_once()
 
 
@@ -84,7 +96,9 @@ def test_issuance_mosip_unavailable_503() -> None:
         def verify(self, _qr_payload: str):
             raise MOSIPUnavailableError("network timeout")
 
-    service = IssuanceService(db=db, mosip=FailingMOSIPAdapter())
+    service = IssuanceService(
+        db=db, identity=IdentityService(mosip=FailingMOSIPAdapter())
+    )
     with pytest.raises(HTTPException) as exc_info:
         service.issue('{"uin":"X","name":"A"}', uuid.uuid4())
 

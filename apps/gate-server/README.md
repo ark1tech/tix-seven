@@ -110,7 +110,7 @@ The test suite covers:
 - `GET /health` returns `{"status":"ok","db":"ok"}`
 - `POST /verify` rejects requests missing the API key (403)
 - `POST /tickets/issue` rejects requests missing the API key (403)
-- `POST /tickets/issue` handles `identity_not_verified` and `already_issued`
+- `POST /tickets/issue` handles `identity_not_verified` and `ticket_already_issued`
 - Every denial branch: `invalid_id`, `no_ticket`, `already_used`, `wrong_event`
 - Grant path: marks ticket used, returns `ticket_id`
 
@@ -328,7 +328,7 @@ Verifies a PhilSys QR payload and issues an event ticket for first-time registra
 
 **Response 409** — ticket already issued for this identity and event
 ```json
-{"detail":"already_issued"}
+{"detail":"ticket_already_issued"}
 ```
 
 **Response 403** — missing or invalid API key

@@ -5,66 +5,107 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.adapters.mosip import (
-    MOSIPAdapter,
-    MOSIPUnavailableError,
-    RealMOSIPAdapter,
-)
-from app.core.crypto import hash_psut
+from app.adapters.mosip import MOSIPUnavailableError
 from app.models.enums import TicketStatusEnum
 from app.models.event import Event
 from app.models.event_ticket_link import EventTicketLink
-from app.models.schemas import IssueResponse
+from app.models.schemas import IssueContext, IssueResponse
 from app.models.ticket import Ticket
+from app.services.identity import IdentityService
 
 
 class IssuanceService:
-    def __init__(self, db: Session, mosip: MOSIPAdapter | None = None):
+    def __init__(self, db: Session, identity: IdentityService | None = None):
         self.db = db
-        self.mosip = mosip or RealMOSIPAdapter()
+        self.identity = identity or IdentityService()
 
     def issue(self, qr_payload: str, event_id: uuid.UUID) -> IssueResponse:
+        """
+        Entry point.
+        Runs the server-side issuance pipeline.
+        """
+
+        context = self._init_context(qr_payload, event_id)
+
+        context = self._resolve_event(context)  # Pipeline Phase 0, Extra Step
+        context = self._verify_identity(context)  # Pipeline Phase 0, Step 3-4
+        context = self._create_link(context)  # Pipeline Phase 0, Step 5.1
+        context = self._create_ticket(context)  # Pipeline Phase 0, Step 5.2
+
+        assert context.ticket_id is not None
+        assert context.link_id is not None
+        assert context.created_at is not None
+
+        return IssueResponse(
+            ticket_id=context.ticket_id,
+            link_id=context.link_id,
+            status="UNUSED",
+            created_at=context.created_at,
+        )
+
+    # Context initialisation
+    def _init_context(self, qr_payload: str, event_id: uuid.UUID) -> IssueContext:
+        return IssueContext(
+            qr_payload=qr_payload,
+            event_id=event_id,
+        )
+
+    def _resolve_event(self, ctx: IssueContext) -> IssueContext:
+        stmt = select(Event).where(Event.event_id == ctx.event_id)
+
+        if self.db.scalar(stmt) is None:
+            raise HTTPException(status_code=404, detail="event_not_found")
+
+        return ctx
+
+    def _verify_identity(self, ctx: IssueContext) -> IssueContext:
         try:
-            result = self.mosip.verify(qr_payload)
+            verified = self.identity.verify(ctx.qr_payload)
         except MOSIPUnavailableError as exc:
             raise HTTPException(
                 status_code=503, detail="mosip_unavailable"
             ) from exc
 
-        if not result.verified or result.psut is None:
-            raise HTTPException(
-                status_code=400, detail="identity_not_verified"
-            )
+        if verified is None:
+            raise HTTPException(status_code=400, detail="identity_not_verified")
 
-        stmt = select(Event).where(Event.event_id == event_id)
-        if self.db.scalar(stmt) is None:
-            raise HTTPException(status_code=404, detail="event_not_found")
+        ctx.psut = verified.psut
 
-        link_hash = hash_psut(result.psut, str(event_id))
-        link = EventTicketLink(event_id=event_id, link_hash=link_hash)
+        return ctx
+
+    def _create_link(self, ctx: IssueContext) -> IssueContext:
+        assert ctx.psut is not None
+
+        ctx.link_hash = self.identity.compute_link_hash(ctx.psut, ctx.event_id)
+
+        link = EventTicketLink(event_id=ctx.event_id, link_hash=ctx.link_hash)
+
         self.db.add(link)
 
         try:
             self.db.flush()
+
         except IntegrityError:
             self.db.rollback()
             raise HTTPException(
-                status_code=409, detail="already_issued"
+                status_code=409, detail="ticket_already_issued"
             ) from None
 
+        ctx.link_id = link.link_id
+
+        return ctx
+
+    def _create_ticket(self, ctx: IssueContext) -> IssueContext:
         ticket = Ticket(
-            link_id=link.link_id,
-            event_id=event_id,
+            link_id=ctx.link_id,
+            event_id=ctx.event_id,
             status=TicketStatusEnum.UNUSED,
         )
-        self.db.add(ticket)
-        self.db.flush()
-        self.db.commit()
-        self.db.refresh(ticket)
 
-        return IssueResponse(
-            ticket_id=ticket.ticket_id,
-            link_id=link.link_id,
-            status="UNUSED",
-            created_at=ticket.created_at,
-        )
+        self.db.add(ticket)
+        self.db.commit()
+
+        ctx.ticket_id = ticket.ticket_id
+        ctx.created_at = ticket.created_at
+
+        return ctx
