@@ -22,8 +22,17 @@ if [ -n "$WG_CONFIG_B64" ]; then
     # Tell the application to use the SOCKS5 proxy for MOSIP requests
     export MOSIP_USE_SOCKS5_PROXY=true
     
-    # Give the proxy a moment to start
-    sleep 2
+    # Wait for the tunnel to establish
+    echo "Waiting for VPN tunnel to establish..."
+    sleep 3
+    
+    # Test the connection to the internal MOSIP network
+    echo "Testing connection to MOSIP Testbed via SOCKS5 proxy..."
+    if curl --socks5-hostname 127.0.0.1:1080 -I -s --connect-timeout 5 https://api-internal.pdec.mosip.net > /dev/null; then
+        echo "✅ SUCCESS: VPN connection established and MOSIP is reachable!"
+    else
+        echo "❌ WARNING: Could not reach MOSIP via the VPN proxy. Please check your WG_CONFIG_B64 or network."
+    fi
 else
     echo "Warning: WG_CONFIG_B64 is not set. Skipping WireGuard setup."
 fi
