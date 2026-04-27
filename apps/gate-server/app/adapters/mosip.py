@@ -28,6 +28,14 @@ def _with_default_timeout(
 ) -> Callable[..., object]:
     def _wrapped(*args, **kwargs):
         kwargs.setdefault("timeout", timeout_seconds)
+
+        # Inject proxy if running via userspace wireproxy
+        if os.environ.get("MOSIP_USE_SOCKS5_PROXY") == "true":
+            kwargs["proxies"] = {
+                "http": "socks5h://127.0.0.1:1080",
+                "https": "socks5h://127.0.0.1:1080",
+            }
+
         return request_func(*args, **kwargs)
 
     return _wrapped
@@ -259,14 +267,14 @@ class RealMOSIPAdapter:
             if data.get("dob"):
                 demo_kwargs["dob"] = data["dob"]
             if data.get("postal_code"):
-                demo_kwargs["postalCode"] = data["postal_code"]
+                demo_kwargs["postal_code"] = data["postal_code"]
 
             # Fields that require the IdentityInfo list structure: [{"language": "eng", "value": "..."}]
             list_fields = {
                 "name": "name",
-                "addressLine1": "address_line1",
-                "addressLine2": "address_line2",
-                "addressLine3": "address_line3",
+                "address_line1": "address_line1",
+                "address_line2": "address_line2",
+                "address_line3": "address_line3",
                 "location1": "location1",
                 "location3": "location3",
                 "zone": "zone",

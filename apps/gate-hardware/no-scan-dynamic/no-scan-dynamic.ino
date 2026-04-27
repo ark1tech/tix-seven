@@ -4,11 +4,11 @@
 #include <ArduinoJson.h>
 
 // --- Configuration ---
-const char* ssid = "TP-Link_BFEA";
-const char* password = "Twd090702_";
+const char* ssid = "s3wifi";
+const char* password = "Com9L3x!";
 
 // Server Details
-const char* serverUrl = "http://192.168.0.107:8000/verify"; // Server's IP
+const char* serverUrl = "http://192.168.60.68:8000/verify"; // Server's IP
 const char* apiKey = "64ca232bb34d5786219670dcb032dc8def1096de71b7c12c85fba03a02a7377e";  // Shared GATE_API_KEY
 const String gateId = "1a1137d5-e36a-400e-96c2-2d4e6019268e";
 
