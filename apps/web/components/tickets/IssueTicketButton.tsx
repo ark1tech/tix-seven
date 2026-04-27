@@ -1,32 +1,23 @@
 "use client";
 
-import * as React from "react";
-
 import { Button } from "@/components/ui/button";
-import { IssueTicketDialog } from "@/components/tickets/IssueTicketDialog";
+import { IssueTicketPopover } from "@/components/tickets/IssueTicketPopover";
 
 interface Props {
   eventId: string;
 }
 
 export function IssueTicketButton({ eventId }: Props) {
-  const [open, setOpen] = React.useState(false);
-
   return (
-    <>
+    <IssueTicketPopover eventId={eventId}>
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
         size="sm"
-        onClick={() => setOpen(true)}
+        className="h-8 px-3 text-xs font-medium bg-primary/[0.08] text-primary border border-primary/10 hover:bg-primary/15 hover:text-primary transition-all duration-200 shadow-none gap-1.5 rounded-md focus-visible:ring-0 aria-expanded:bg-primary/20 aria-expanded:text-primary aria-expanded:border-primary/30 aria-expanded:shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] cursor-pointer"
       >
         Issue ticket
       </Button>
-      <IssueTicketDialog
-        open={open}
-        onOpenChange={setOpen}
-        eventId={eventId}
-      />
-    </>
+    </IssueTicketPopover>
   );
 }
