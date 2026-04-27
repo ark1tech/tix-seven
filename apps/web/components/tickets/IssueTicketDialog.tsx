@@ -43,18 +43,23 @@ export function IssueTicketDialog({ open, onOpenChange, eventId }: Props) {
     keyof typeof errorMessages | null
   >(null);
   const [lastTicketId, setLastTicketId] = React.useState<string | null>(null);
+  const isSubmitting = phase === "submitting";
 
-  React.useEffect(() => {
-    if (!open) {
-      setPayload("");
-      setPhase("idle");
-      setErrorCode(null);
-      setLastTicketId(null);
-    }
-  }, [open]);
+  function resetForm() {
+    setPayload("");
+    setPhase("idle");
+    setErrorCode(null);
+    setLastTicketId(null);
+  }
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (!nextOpen && isSubmitting) return;
+    if (!nextOpen) resetForm();
+    onOpenChange(nextOpen);
+  }
 
   const trimmed = payload.trim();
-  const canSubmit = trimmed.length > 0 && phase !== "submitting";
+  const canSubmit = trimmed.length > 0 && !isSubmitting;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -70,7 +75,7 @@ export function IssueTicketDialog({ open, onOpenChange, eventId }: Props) {
       setLastTicketId(r.ticket.ticket_id);
       setPhase("success");
       window.setTimeout(() => {
-        onOpenChange(false);
+        handleOpenChange(false);
       }, 2000);
       return;
     }
@@ -80,8 +85,8 @@ export function IssueTicketDialog({ open, onOpenChange, eventId }: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-md" showCloseButton={!isSubmitting}>
         <DialogHeader>
           <DialogTitle>Issue ticket</DialogTitle>
           <DialogDescription>
@@ -110,7 +115,7 @@ export function IssueTicketDialog({ open, onOpenChange, eventId }: Props) {
                 "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
                 "disabled:cursor-not-allowed disabled:opacity-50"
               )}
-              disabled={phase === "submitting"}
+              disabled={isSubmitting}
             />
           </div>
 
@@ -133,8 +138,8 @@ export function IssueTicketDialog({ open, onOpenChange, eventId }: Props) {
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={phase === "submitting"}
+              onClick={() => handleOpenChange(false)}
+              disabled={isSubmitting}
             >
               Cancel
             </Button>

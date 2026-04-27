@@ -1,4 +1,4 @@
-import { createClient, isMockMode } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import type { Gate } from "@tix-seven/types";
 
 const GATE_COLUMNS = "gate_id, venue_id, location, status";
@@ -79,18 +79,7 @@ async function syncGateVenueToEvent(
 }
 
 export async function getGates(): Promise<Gate[]> {
-  const mock = await isMockMode();
   const supabase = await createClient();
-
-  if (mock) {
-    const { data, error } = await supabase
-      .from("gate")
-      .select("gate_id, venue_id, event_id, location, status")
-      .order("gate_id", { ascending: true });
-    if (error) throw error;
-    return data as Gate[];
-  }
-
   const { data: gates, error } = await supabase
     .from("gate")
     .select(GATE_COLUMNS)
@@ -106,23 +95,7 @@ export async function getGates(): Promise<Gate[]> {
 export async function createGate(
   payload: { location: string; event_id?: string | null }
 ): Promise<Gate> {
-  const mock = await isMockMode();
   const supabase = await createClient();
-
-  if (mock) {
-    const { data, error } = await supabase
-      .from("gate")
-      .insert({
-        location: payload.location,
-        event_id: payload.event_id ?? null,
-        status: "OFFLINE",
-      })
-      .select("gate_id, venue_id, event_id, location, status")
-      .single();
-    if (error) throw error;
-    return data as Gate;
-  }
-
   const venue_id = await resolveVenueIdForInsert(supabase, payload.event_id ?? null);
   const { data: gate, error } = await supabase
     .from("gate")
@@ -156,20 +129,7 @@ export async function updateGate(
   id: string,
   payload: Partial<{ location: string; event_id: string | null }>
 ): Promise<Gate> {
-  const mock = await isMockMode();
   const supabase = await createClient();
-
-  if (mock) {
-    const { data, error } = await supabase
-      .from("gate")
-      .update(payload)
-      .eq("gate_id", id)
-      .select("gate_id, venue_id, event_id, location, status")
-      .single();
-    if (error) throw error;
-    return data as Gate;
-  }
-
   const gateUpdate: Record<string, string> = {};
   if (payload.location !== undefined) gateUpdate.location = payload.location;
   if (Object.keys(gateUpdate).length > 0) {
@@ -214,13 +174,9 @@ export async function updateGate(
 }
 
 export async function deleteGate(id: string): Promise<void> {
-  const mock = await isMockMode();
   const supabase = await createClient();
-
-  if (!mock) {
-    const { error: aErr } = await supabase.from("gate_assignment").delete().eq("gate_id", id);
-    if (aErr) throw aErr;
-  }
+  const { error: aErr } = await supabase.from("gate_assignment").delete().eq("gate_id", id);
+  if (aErr) throw aErr;
   const { error } = await supabase.from("gate").delete().eq("gate_id", id);
   if (error) throw error;
 }

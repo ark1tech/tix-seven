@@ -76,7 +76,7 @@ export default function EntryLogFeed({ eventId, initialLogs }: Props) {
           <Select modal={false} value={filter} onValueChange={(v) => {
               if (v === "All" || v === "Granted" || v === "Denied") setFilter(v);
             }}>
-            <SelectTrigger className="h-8 px-2 text-xs border-transparent hover:bg-muted/60 transition-colors bg-transparent shadow-none w-auto gap-1.5 text-muted-foreground font-medium focus-visible:ring-0 data-[open]:bg-muted/80 data-[open]:text-foreground rounded-md">
+            <SelectTrigger className="h-8 px-2 text-xs border-transparent hover:bg-muted/60 transition-colors bg-transparent shadow-none w-auto gap-1.5 text-muted-foreground font-medium focus-visible:ring-0 data-open:bg-muted/80 data-open:text-foreground rounded-md">
               <Filter className="h-3.5 w-3.5 shrink-0" />
               <SelectValue />
             </SelectTrigger>
@@ -90,7 +90,7 @@ export default function EntryLogFeed({ eventId, initialLogs }: Props) {
           <Select modal={false} value={sort} onValueChange={(v) => {
               if (v === "Newest" || v === "Oldest") setSort(v);
             }}>
-            <SelectTrigger className="h-8 px-2 text-xs border-transparent hover:bg-muted/60 transition-colors bg-transparent shadow-none w-auto gap-1.5 text-muted-foreground font-medium focus-visible:ring-0 data-[open]:bg-muted/80 data-[open]:text-foreground rounded-md">
+            <SelectTrigger className="h-8 px-2 text-xs border-transparent hover:bg-muted/60 transition-colors bg-transparent shadow-none w-auto gap-1.5 text-muted-foreground font-medium focus-visible:ring-0 data-open:bg-muted/80 data-open:text-foreground rounded-md">
               <ArrowUpDown className="h-3.5 w-3.5 shrink-0" />
               <SelectValue />
             </SelectTrigger>

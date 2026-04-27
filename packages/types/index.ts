@@ -1,16 +1,33 @@
+/** Aligned with Postgres enums in `public` (gate-server Alembic). */
 export type TicketStatus = "UNUSED" | "USED";
 export type GateStatus = "ONLINE" | "OFFLINE";
 export type LogResult = "GRANTED" | "DENIED" | "TIMEOUT" | "ERROR";
 
-/** Aligned to `public.denial_reason` in Postgres. Mock data may use other short strings. */
+/** `public.event_status` */
+export type EventStatus = "SCHEDULED" | "ACTIVE" | "CONCLUDED";
+
+/** `public.assignment_status` */
+export type AssignmentStatus = "ACTIVE" | "INACTIVE";
+
+/**
+ * `public.denial_reason` enum — matches `app/models/enums.py` `DenialReasonEnum`.
+ */
 export type DenialReason =
+  | "INVALID_GATE_ID"
+  | "INVALID_GATE_ASSIGNMENT"
   | "IDENTITY_NOT_VERIFIED"
   | "LINK_NOT_FOUND"
+  | "WRONG_EVENT"
   | "TICKET_NOT_FOUND"
   | "TICKET_ALREADY_USED"
   | "SERVER_TIMEOUT"
   | "INTERNAL_SERVER_ERROR";
 
+/**
+ * `start_time` / `end_time` are Postgres `timestamp without time zone` values intended as
+ * Philippines (Asia/Manila) wall clock — not UTC instants. Format from API/DB is typically
+ * `YYYY-MM-DD HH:mm:ss` (Postgrest may return `T` between date and time).
+ */
 export interface Event {
   event_id: string;
   venue_id: string;
@@ -21,6 +38,9 @@ export interface Event {
   capacity: number;
 }
 
+/**
+ * Dashboard view: `event_id` is derived from active `gate_assignment`, not a `gate` column.
+ */
 export interface Gate {
   gate_id: string;
   venue_id: string | null;
@@ -39,15 +59,33 @@ export interface Ticket {
   used_at: string | null;
 }
 
+/** Row shape for `public.log` (organizer dashboard). */
 export interface Log {
   log_id: string;
   event_id: string;
   gate_id: string;
+  assignment_id: string;
   ticket_id: string | null;
   result: LogResult;
-  /** `public.log.denial_reason` (enum) or `mock.log.reason` (free text) in debug */
+  /** `public.log.denial_reason` — null when `result === "GRANTED"`. */
   denial_reason: string | null;
   timestamp: string;
+}
+
+/**
+ * `public.scan_attempt_log` — full verify audit (gate-server); omit from UI unless you query it.
+ */
+export interface ScanAttemptLog {
+  attempt_id: string;
+  timestamp: string;
+  gate_id_raw: string;
+  gate_id: string | null;
+  event_id: string | null;
+  assignment_id: string | null;
+  ticket_id: string | null;
+  result: LogResult;
+  denial_reason: string | null;
+  error_code: string | null;
 }
 
 export interface EventStats {

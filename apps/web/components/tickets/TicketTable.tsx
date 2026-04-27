@@ -21,9 +21,20 @@ import { cn } from "@/lib/utils";
 import type { Ticket } from "@tix-seven/types";
 import { Filter, ArrowUpDown } from "lucide-react";
 
+type TicketFilter = "All" | "Active" | "Used";
+type TicketSort = "Newest" | "Oldest";
+
+function isTicketFilter(value: string | null): value is TicketFilter {
+  return value === "All" || value === "Active" || value === "Used";
+}
+
+function isTicketSort(value: string | null): value is TicketSort {
+  return value === "Newest" || value === "Oldest";
+}
+
 export default function TicketTable({ tickets }: { tickets: Ticket[] }) {
-  const [filter, setFilter] = useState<"All" | "Active" | "Used">("All");
-  const [sort, setSort] = useState<"Newest" | "Oldest">("Newest");
+  const [filter, setFilter] = useState<TicketFilter>("All");
+  const [sort, setSort] = useState<TicketSort>("Newest");
 
   const filteredTickets = tickets.filter((t) => {
     if (filter === "Active") return t.status !== "USED";
@@ -43,9 +54,9 @@ export default function TicketTable({ tickets }: { tickets: Ticket[] }) {
         <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mr-4">Ticket Registry</h2>
         <div className="flex items-center gap-1.5 flex-wrap flex-1 justify-end">
           <Select modal={false} value={filter} onValueChange={(v) => {
-            if (v) setFilter(v as "All" | "Active" | "Used");
+            if (isTicketFilter(v)) setFilter(v);
           }}>
-            <SelectTrigger className="h-8 px-2 text-xs border-transparent hover:bg-muted/60 transition-colors bg-transparent shadow-none w-auto gap-1.5 text-muted-foreground font-medium focus-visible:ring-0 data-[open]:bg-muted/80 data-[open]:text-foreground rounded-md">
+            <SelectTrigger className="h-8 px-2 text-xs border-transparent hover:bg-muted/60 transition-colors bg-transparent shadow-none w-auto gap-1.5 text-muted-foreground font-medium focus-visible:ring-0 data-open:bg-muted/80 data-open:text-foreground rounded-md">
               <Filter className="h-3.5 w-3.5 shrink-0" />
               <SelectValue />
             </SelectTrigger>
@@ -57,9 +68,9 @@ export default function TicketTable({ tickets }: { tickets: Ticket[] }) {
           </Select>
 
           <Select modal={false} value={sort} onValueChange={(v) => {
-            if (v) setSort(v as "Newest" | "Oldest");
+            if (isTicketSort(v)) setSort(v);
           }}>
-            <SelectTrigger className="h-8 px-2 text-xs border-transparent hover:bg-muted/60 transition-colors bg-transparent shadow-none w-auto gap-1.5 text-muted-foreground font-medium focus-visible:ring-0 data-[open]:bg-muted/80 data-[open]:text-foreground rounded-md">
+            <SelectTrigger className="h-8 px-2 text-xs border-transparent hover:bg-muted/60 transition-colors bg-transparent shadow-none w-auto gap-1.5 text-muted-foreground font-medium focus-visible:ring-0 data-open:bg-muted/80 data-open:text-foreground rounded-md">
               <ArrowUpDown className="h-3.5 w-3.5 shrink-0" />
               <SelectValue />
             </SelectTrigger>

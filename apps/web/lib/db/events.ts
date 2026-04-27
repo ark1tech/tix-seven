@@ -1,11 +1,24 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Event } from "@tix-seven/types";
 
-function toEvent(row: any): Event {
+type EventRow = Omit<Event, "venue_name"> & {
+  venue: { name: string } | { name: string }[] | null;
+};
+
+type EventUpdate = Partial<{
+  name: string;
+  start_time: string;
+  end_time: string;
+  capacity: number;
+  venue_id: string;
+}>;
+
+function toEvent(row: EventRow): Event {
+  const venue = Array.isArray(row.venue) ? row.venue[0] : row.venue;
   return {
     event_id: row.event_id,
     venue_id: row.venue_id,
-    venue_name: row.venue?.name ?? "",
+    venue_name: venue?.name ?? "",
     name: row.name,
     start_time: row.start_time,
     end_time: row.end_time,
@@ -20,7 +33,7 @@ export async function getEvents(): Promise<Event[]> {
     .select("event_id, venue_id, name, start_time, end_time, capacity, venue(name)")
     .order("start_time", { ascending: true });
   if (error) throw error;
-  return data.map(toEvent);
+  return ((data ?? []) as unknown as EventRow[]).map(toEvent);
 }
 
 export async function getEvent(id: string): Promise<Event> {
@@ -31,7 +44,7 @@ export async function getEvent(id: string): Promise<Event> {
     .eq("event_id", id)
     .single();
   if (error) throw error;
-  return toEvent(data);
+  return toEvent(data as unknown as EventRow);
 }
 
 export async function createEvent(
@@ -58,7 +71,7 @@ export async function createEvent(
     .select("event_id, venue_id, name, start_time, end_time, capacity, venue(name)")
     .single();
   if (error) throw error;
-  return toEvent(data);
+  return toEvent(data as unknown as EventRow);
 }
 
 export async function updateEvent(
@@ -67,17 +80,17 @@ export async function updateEvent(
 ): Promise<Event> {
   const supabase = await createClient();
 
-  const update: Record<string, any> = { ...payload };
+  const { venue_name, ...eventFields } = payload;
+  const update: EventUpdate = { ...eventFields };
 
-  if (payload.venue_name !== undefined) {
+  if (venue_name !== undefined) {
     const { data: venue, error: venueError } = await supabase
       .from("venue")
-      .upsert({ name: payload.venue_name }, { onConflict: "name", ignoreDuplicates: false })
+      .upsert({ name: venue_name }, { onConflict: "name", ignoreDuplicates: false })
       .select("venue_id")
       .single();
     if (venueError) throw venueError;
     update.venue_id = venue.venue_id;
-    delete update.venue_name;
   }
 
   const { data, error } = await supabase
@@ -87,5 +100,5 @@ export async function updateEvent(
     .select("event_id, venue_id, name, start_time, end_time, capacity, venue(name)")
     .single();
   if (error) throw error;
-  return toEvent(data);
+  return toEvent(data as unknown as EventRow);
 }
