@@ -1,6 +1,7 @@
 import { getEvent } from "@/lib/db/events";
 import EventHeader from "@/components/events/EventHeader";
 import { notFound } from "next/navigation";
+import { getAssignedGatesAction } from "./mock-scan-action";
 
 export default async function EventLayout({
   children,
@@ -10,7 +11,10 @@ export default async function EventLayout({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-  const event = await getEvent(eventId);
+  const [event, gates] = await Promise.all([
+    getEvent(eventId),
+    getAssignedGatesAction(eventId)
+  ]);
 
   if (!event) {
     notFound();
@@ -18,7 +22,7 @@ export default async function EventLayout({
 
   return (
     <div className="flex flex-col">
-      <EventHeader event={event} />
+      <EventHeader event={event} gates={gates} />
       {children}
     </div>
   );

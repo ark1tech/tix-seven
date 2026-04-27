@@ -1,5 +1,5 @@
 import type { IssuedTicket } from "@tix-seven/types";
-import { requireGateServerUrl, resolveInternalApiKey } from "./internal";
+import { requireGateServerUrl, resolveInternalApiKey, resolveHardwareApiKey } from "./internal";
 
 export type IssueError =
   | "unauthorized"
@@ -13,6 +13,10 @@ export type IssueError =
 export type IssueTicketResult =
   | { ok: true; ticket: IssuedTicket }
   | { ok: false; error: IssueError };
+
+export type MockScanResult =
+  | { ok: true; result: "grant" | "deny"; ticket_id?: string; reason?: string }
+  | { ok: false; error: string };
 
 function parseBodyDetail(body: unknown): string | undefined {
   if (body && typeof body === "object" && "detail" in body) {
@@ -122,4 +126,53 @@ export async function issueTicket(
   }
 
   return { ok: false, error: "internal_server_error" };
+}
+
+export async function mockScan(
+  gateId: string,
+  qrPayload: string,
+  traceId: string,
+): Promise<MockScanResult> {
+  const base = requireGateServerUrl().replace(/\/$/, "");
+  const hardwareKey = resolveHardwareApiKey();
+
+  console.info(
+    "[mock-scan] web->gate request trace_id=%s route=/verify gate_id=%s",
+    traceId,
+    gateId,
+  );
+
+  let res: Response;
+  try {
+    res = await fetch(`${base}/verify`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Gate-Api-Key": hardwareKey,
+        "X-Trace-Id": traceId,
+      },
+      body: JSON.stringify({ qr_payload: qrPayload, gate_id: gateId }),
+    });
+  } catch (e) {
+    console.error(
+      "[mock-scan] web->gate transport_error trace_id=%s route=/verify error=%s",
+      traceId,
+      String(e),
+    );
+    return { ok: false, error: "transport_error" };
+  }
+
+  if (!res.ok) {
+    let detail: string | undefined;
+    try {
+      const body = await res.json();
+      detail = parseBodyDetail(body);
+    } catch {
+      // ignore
+    }
+    return { ok: false, error: detail ?? `gate_server_error_${res.status}` };
+  }
+
+  const data = await res.json();
+  return { ok: true, ...data };
 }
