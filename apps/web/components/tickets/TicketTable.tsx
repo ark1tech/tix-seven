@@ -112,7 +112,7 @@ export default function TicketTable({ tickets }: { tickets: Ticket[] }) {
                       "h-1.5 w-1.5 rounded-full",
                       ticket.status === "USED" ? "bg-red-500" : "bg-emerald-500"
                     )} />
-                    {ticket.status === "USED" ? "Used" : "Active"}
+                    {ticket.status === "USED" ? "Used" : "Unused"}
                   </span>
                 </TableCell>
                 <TableCell className="py-2 px-3 text-xs text-muted-foreground">

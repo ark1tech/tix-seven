@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { issueTicketAction } from "@/app/(dashboard)/events/[eventId]/actions";
 import { Button } from "@/components/ui/button";
+import type { IssueError } from "@/lib/gate-server/client";
 import {
   Dialog,
   DialogContent,
@@ -16,18 +17,22 @@ import { cn } from "@/lib/utils";
 
 type Phase = "idle" | "submitting" | "success" | "error";
 
-const errorMessages: Record<
-  "identity_not_verified" | "event_not_found" | "already_issued" | "internal_server_error",
-  string
-> = {
-  identity_not_verified:
-    "The QR payload could not be verified. Check the JSON and try again.",
+const errorMessages: Record<IssueError, string> = {
+  unauthorized:
+    "Your session is missing or no longer valid. Sign in, then try again.",
+  forbidden: "You do not have permission to issue tickets for this event.",
+  mosip_unavailable:
+    "Identity checking is temporarily unavailable (maintenance or high load). Try again in a few minutes.",
+  identity_not_verified: "The QR is invalid. Please try again.",
   event_not_found: "This event was not found. Refresh the page and try again.",
-  already_issued:
-    "A ticket for this identity on this event already exists.",
+  already_issued: "A ticket for this identity on this event already exists.",
   internal_server_error:
     "Something went wrong on the server. Try again in a moment.",
 };
+
+function messageForIssueError(code: IssueError): string {
+  return errorMessages[code] ?? errorMessages.internal_server_error;
+}
 
 interface Props {
   open: boolean;
@@ -39,9 +44,7 @@ export function IssueTicketDialog({ open, onOpenChange, eventId }: Props) {
   const router = useRouter();
   const [payload, setPayload] = React.useState("");
   const [phase, setPhase] = React.useState<Phase>("idle");
-  const [errorCode, setErrorCode] = React.useState<
-    keyof typeof errorMessages | null
-  >(null);
+  const [errorCode, setErrorCode] = React.useState<IssueError | null>(null);
   const [lastTicketId, setLastTicketId] = React.useState<string | null>(null);
   const isSubmitting = phase === "submitting";
 
@@ -113,7 +116,7 @@ export function IssueTicketDialog({ open, onOpenChange, eventId }: Props) {
                 "placeholder:text-muted-foreground",
                 "outline-none transition-colors",
                 "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
-                "disabled:cursor-not-allowed disabled:opacity-50"
+                "disabled:cursor-not-allowed disabled:opacity-50",
               )}
               disabled={isSubmitting}
             />
@@ -122,15 +125,13 @@ export function IssueTicketDialog({ open, onOpenChange, eventId }: Props) {
           {phase === "success" && lastTicketId && (
             <p className="text-sm text-muted-foreground">
               Ticket issued:{" "}
-              <span className="font-mono text-foreground">
-                {lastTicketId}
-              </span>
+              <span className="font-mono text-foreground">{lastTicketId}</span>
             </p>
           )}
 
           {phase === "error" && errorCode && (
             <p className="text-sm text-destructive" role="alert">
-              {errorMessages[errorCode]}
+              {messageForIssueError(errorCode)}
             </p>
           )}
 
@@ -139,14 +140,10 @@ export function IssueTicketDialog({ open, onOpenChange, eventId }: Props) {
               type="button"
               variant="outline"
               onClick={() => handleOpenChange(false)}
-              disabled={isSubmitting}
-            >
+              disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={!canSubmit}
-            >
+            <Button type="submit" disabled={!canSubmit}>
               {phase === "submitting" ? "Issuing…" : "Issue ticket"}
             </Button>
           </div>

@@ -1,14 +1,27 @@
 import type { IssuedTicket } from "@tix-seven/types";
 
-function requireEnv(name: "GATE_SERVER_URL" | "GATE_SERVER_API_KEY"): string {
-  const v = process.env[name];
+function requireGateServerUrl(): string {
+  const v = process.env.GATE_SERVER_URL;
   if (!v?.trim()) {
-    throw new Error(`Missing required environment variable: ${name}`);
+    throw new Error("Missing required environment variable: GATE_SERVER_URL");
   }
   return v;
 }
 
-type IssueError =
+function resolveInternalApiKey(): string {
+  const primary = process.env.GATE_SERVER_INTERNAL_API_KEY?.trim();
+  if (primary) return primary;
+  const fallback = process.env.GATE_SERVER_API_KEY?.trim();
+  if (fallback) return fallback;
+  throw new Error(
+    "Missing required environment variable: GATE_SERVER_INTERNAL_API_KEY (or temporary alias GATE_SERVER_API_KEY)",
+  );
+}
+
+export type IssueError =
+  | "unauthorized"
+  | "forbidden"
+  | "mosip_unavailable"
   | "identity_not_verified"
   | "event_not_found"
   | "already_issued"
@@ -27,25 +40,47 @@ function parseBodyDetail(body: unknown): string | undefined {
 }
 
 export async function issueTicket(
+  accessToken: string,
   eventId: string,
-  qrPayload: string
+  qrPayload: string,
+  traceId: string,
 ): Promise<IssueTicketResult> {
-  const base = requireEnv("GATE_SERVER_URL").replace(/\/$/, "");
-  const key = requireEnv("GATE_SERVER_API_KEY");
+  const base = requireGateServerUrl().replace(/\/$/, "");
+  const internalKey = resolveInternalApiKey();
+  const payloadBytes = new TextEncoder().encode(qrPayload).length;
+
+  console.info(
+    "[ticket-issue] web->gate request trace_id=%s route=/dashboard/tickets/issue event_id=%s qr_payload_bytes=%s",
+    traceId,
+    eventId,
+    payloadBytes,
+  );
 
   let res: Response;
   try {
-    res = await fetch(`${base}/tickets/issue`, {
+    res = await fetch(`${base}/dashboard/tickets/issue`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Gate-Api-Key": key,
+        Authorization: `Bearer ${accessToken}`,
+        "X-Internal-Api-Key": internalKey,
+        "X-Trace-Id": traceId,
       },
       body: JSON.stringify({ qr_payload: qrPayload, event_id: eventId }),
     });
   } catch {
+    console.error(
+      "[ticket-issue] web->gate transport_error trace_id=%s route=/dashboard/tickets/issue",
+      traceId,
+    );
     return { ok: false, error: "internal_server_error" };
   }
+  console.info(
+    "[ticket-issue] gate->web response trace_id=%s status_code=%s response_trace_id=%s",
+    traceId,
+    res.status,
+    res.headers.get("X-Trace-Id") ?? "-",
+  );
 
   if (res.status === 201) {
     const data = (await res.json()) as {
@@ -72,6 +107,17 @@ export async function issueTicket(
     body = null;
   }
   const detail = parseBodyDetail(body);
+
+  // Auth / gateway (no body detail required; gate-server returns 401 for bad internal key or JWT)
+  if (res.status === 401) {
+    return { ok: false, error: "unauthorized" };
+  }
+  if (res.status === 403) {
+    return { ok: false, error: "forbidden" };
+  }
+  if (res.status === 503) {
+    return { ok: false, error: "mosip_unavailable" };
+  }
 
   if (res.status === 400 && detail === "identity_not_verified") {
     return { ok: false, error: "identity_not_verified" };
