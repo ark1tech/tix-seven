@@ -150,8 +150,6 @@ class EventResponse(BaseModel):
 # Gate schemas
 # ---------------------------------------------------------------------------
 
-_UNSET = object()
-
 
 class GateCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
