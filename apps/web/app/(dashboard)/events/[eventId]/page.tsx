@@ -29,7 +29,7 @@ export default async function EventDetailPage({
       <EventStats stats={stats} capacity={event.capacity} />
 
       <div className="flex flex-col gap-4">
-        <TicketTable tickets={tickets} />
+        <TicketTable eventId={eventId} initialTickets={tickets} />
       </div>
     </div>
   );

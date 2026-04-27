@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { subscribeToTickets } from "@/lib/db/tickets-realtime";
 import {
   Table,
   TableBody,
@@ -32,9 +33,36 @@ function isTicketSort(value: string | null): value is TicketSort {
   return value === "Newest" || value === "Oldest";
 }
 
-export default function TicketTable({ tickets }: { tickets: Ticket[] }) {
+export default function TicketTable({ eventId, initialTickets }: { eventId: string, initialTickets: Ticket[] }) {
+  const [tickets, setTickets] = useState<Ticket[]>(initialTickets);
   const [filter, setFilter] = useState<TicketFilter>("All");
   const [sort, setSort] = useState<TicketSort>("Newest");
+
+  useEffect(() => {
+    const unsub = subscribeToTickets(eventId, (updatedTicket) => {
+      setTickets((prev) => {
+        const index = prev.findIndex((t) => t.ticket_id === updatedTicket.ticket_id);
+        if (index !== -1) {
+          // UPDATE path: merge but never clobber an existing link_hash with null
+          const existing = prev[index];
+          const merged: Ticket = {
+            ...existing,
+            ...updatedTicket,
+            link_hash: updatedTicket.link_hash ?? existing.link_hash,
+          };
+          const newTickets = [...prev];
+          newTickets[index] = merged;
+          return newTickets;
+        } else {
+          // INSERT path: only add if link_hash is present — the broadcast can
+          // fire before the event_ticket_link join is visible, yielding null.
+          if (!updatedTicket.link_hash) return prev;
+          return [updatedTicket as Ticket, ...prev];
+        }
+      });
+    });
+    return unsub;
+  }, [eventId]);
 
   const filteredTickets = tickets.filter((t) => {
     if (filter === "Active") return t.status !== "USED";
@@ -100,7 +128,7 @@ export default function TicketTable({ tickets }: { tickets: Ticket[] }) {
             {sortedTickets.map((ticket, i) => (
               <TableRow key={ticket.ticket_id} className={i % 2 === 1 ? "bg-muted/40" : undefined}>
                 <TableCell className="py-2 px-3 font-mono text-xs">{ticket.ticket_id.slice(0, 8)}…</TableCell>
-                <TableCell className="py-2 px-3 font-mono text-xs">{ticket.link_hash.slice(0, 12)}…</TableCell>
+                <TableCell className="py-2 px-3 font-mono text-xs">{ticket.link_hash?.slice(0, 12) ?? "—"}…</TableCell>
                 <TableCell className="py-2 px-3">
                   <span className={cn(
                     "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
