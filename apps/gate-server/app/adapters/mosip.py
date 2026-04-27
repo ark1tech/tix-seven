@@ -28,14 +28,6 @@ def _with_default_timeout(
 ) -> Callable[..., object]:
     def _wrapped(*args, **kwargs):
         kwargs.setdefault("timeout", timeout_seconds)
-
-        # Inject proxy if running via userspace wireproxy
-        if os.environ.get("MOSIP_USE_SOCKS5_PROXY") == "true":
-            kwargs["proxies"] = {
-                "http": "socks5h://127.0.0.1:1080",
-                "https": "socks5h://127.0.0.1:1080",
-            }
-
         return request_func(*args, **kwargs)
 
     return _wrapped
@@ -199,11 +191,11 @@ class RealMOSIPAdapter:
         - authStatus: false -> "NO, the data does not match"
 
         - authToken: PSUT
-    
+
         """
 
         # TODO: VERIFY. From my understanding, kahit sa yes / no API call may PSUT token?
-    
+
         raw_body = response.text
         if not raw_body or not raw_body.strip():
             _auth_log.error(
@@ -300,11 +292,11 @@ class RealMOSIPAdapter:
 
 class StubMOSIPAdapter:
     """Used in tests and local dev without WireGuard access."""
- 
+
     # Hardcoded PSUT that matches the DEV_PSUT constant in verification.py.
 
     _STUB_PSUT = "DEV_PSUT"
- 
+
     def verify(self, qr_payload: str) -> VerificationResult:
         if not qr_payload or not qr_payload.strip():
             return VerificationResult(verified=False, uin=None, psut=None)
