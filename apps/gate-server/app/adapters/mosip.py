@@ -27,6 +27,14 @@ def _with_default_timeout(
 ) -> Callable[..., object]:
     def _wrapped(*args, **kwargs):
         kwargs.setdefault("timeout", timeout_seconds)
+
+        # Inject proxy if running via userspace wireproxy
+        if os.environ.get("MOSIP_USE_SOCKS5_PROXY") == "true":
+            kwargs["proxies"] = {
+                "http": "socks5h://127.0.0.1:1080",
+                "https": "socks5h://127.0.0.1:1080",
+            }
+
         return request_func(*args, **kwargs)
 
     return _wrapped
