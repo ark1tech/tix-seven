@@ -1,9 +1,10 @@
 import uuid
 
-from sqlalchemy import func, select, update
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.adapters.mosip import MOSIPUnavailableError
+from app.db.time import pht_now
 from app.models.enums import (
     AssignmentStatusEnum,
     DenialReasonEnum,
@@ -13,6 +14,7 @@ from app.models.enums import (
 from app.models.event_ticket_link import EventTicketLink
 from app.models.gate_assignment import GateAssignment
 from app.models.log import Log
+from app.models.scan_attempt_log import ScanAttemptLog
 from app.models.schemas import VerifyContext, VerifyResponse
 from app.models.ticket import Ticket
 from app.services.identity import IdentityService
@@ -26,9 +28,12 @@ class VerificationService:
     def verify(self, qr_payload: str, gate_id: str) -> VerifyResponse:
         """
         Entry point.
-        Runs the server-side validation pipeline and always concludes with a log write before returning.
+        Runs the server-side validation pipeline and always records a row in
+        ``scan_attempt_log`` before returning. When the gate and event are
+        resolvable, an additional row is written to ``log``.
 
-        On any exception, the transaction is rolled back, a log entry is committed on its own, and a "deny" is returned to the ESP8266.
+        On any exception, the transaction is rolled back, writes are applied,
+        and a "deny" is returned to the ESP8266 when applicable.
         """
 
         context = self._init_context(qr_payload, gate_id)
@@ -46,12 +51,14 @@ class VerificationService:
                 # Unhandled exception before result was assigned: log as ERROR with reason.
                 context.result = ResultEnum.ERROR
                 context.denial_reason = DenialReasonEnum.INTERNAL_SERVER_ERROR
+                context.error_code = "INTERNAL_SERVER_ERROR"
                 context.response = VerifyResponse(
                     result="deny",
                     reason=context.denial_reason,
                 )
 
             self.db.rollback()
+            self._write_scan_attempt(context)
             self._write_log(context)
             self.db.commit()
 
@@ -60,6 +67,7 @@ class VerificationService:
             return context.response
 
         # Happy path: log the granted result alongside the committed ticket update.
+        self._write_scan_attempt(context)
         self._write_log(context)
         self.db.commit()
 
@@ -196,16 +204,33 @@ class VerificationService:
     # Helpers
     # ------------------------------------------------------------------
 
+    def _write_scan_attempt(self, ctx: VerifyContext) -> None:
+        assert ctx.result is not None
+
+        gate_uuid = self._to_uuid(ctx.gate_id)
+        self.db.add(
+            ScanAttemptLog(
+                gate_id_raw=ctx.gate_id,
+                gate_id=gate_uuid,
+                event_id=ctx.event_id,
+                assignment_id=ctx.assignment_id,
+                ticket_id=ctx.ticket_id,
+                result=ctx.result,
+                denial_reason=ctx.denial_reason,
+                error_code=ctx.error_code,
+                timestamp=pht_now(),
+            )
+        )
+
     def _write_log(self, ctx: VerifyContext) -> None:
         gate_uuid = self._to_uuid(ctx.gate_id)
 
         if gate_uuid is None:
-            # Cannot write a meaningful log without a valid gate_id.
-            return  # MAYBE TODO: Handle better?
+            # Event-linked operational log requires a valid gate_id FK.
+            return
 
         if ctx.event_id is None:
-            # Cannot log if gate resolution failed before event_id was populated.
-            return  # MAYBE TODO: Handle better?
+            return
 
         self.db.add(
             Log(
@@ -215,7 +240,7 @@ class VerificationService:
                 ticket_id=ctx.ticket_id,  # Null for pre-ticket failures
                 result=ctx.result,
                 denial_reason=ctx.denial_reason,
-                timestamp=func.now(),
+                timestamp=pht_now(),
             )
         )
 
@@ -231,6 +256,7 @@ class VerificationService:
 
         ctx.result = ResultEnum.DENIED
         ctx.denial_reason = reason
+        ctx.error_code = error
         ctx.response = VerifyResponse(result="deny", reason=reason)
 
         raise Exception(error)
@@ -291,7 +317,7 @@ class VerificationService:
                 Ticket.ticket_id == ticket_id,
                 Ticket.status == TicketStatusEnum.UNUSED,
             )
-            .values(status=TicketStatusEnum.USED, used_at=func.now())
+            .values(status=TicketStatusEnum.USED, used_at=pht_now())
         )
         result = self.db.execute(stmt)
 

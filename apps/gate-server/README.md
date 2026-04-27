@@ -9,10 +9,21 @@ ESP8266 gate  ──POST /verify──▶  gate-server  ──▶  MOSIP IDA (QR
                                       │
                                       ▼
                                Supabase / Postgres
-                      (gates, tickets, event_ticket_links, logs)
+            (gates, tickets, event_ticket_links, log, scan_attempt_log)
 ```
 
-A physical gate device scans a PhilSys QR code, sends the raw payload to this server with a pre-shared API key, and receives either `{"result":"grant"}` or `{"result":"deny","reason":"..."}`. The server verifies the QR against MOSIP's Identity Authentication API, checks that the attendee holds a valid unused ticket for the correct event, atomically marks the ticket used, and writes an audit log entry.
+A physical gate device scans a PhilSys QR code, sends the raw payload to this server with a pre-shared API key, and receives either `{"result":"grant"}` or `{"result":"deny","reason":"..."}`. The server verifies the QR against MOSIP's Identity Authentication API, checks that the attendee holds a valid unused ticket for the correct event, atomically marks the ticket used, and writes audit rows (see [Audit and logging](#audit-and-logging)).
+
+## Audit and logging
+
+Two tables are used on `POST /verify`:
+
+| Table | Purpose |
+| --- | --- |
+| `scan_attempt_log` | **Every** scan attempt, including pre-resolution failures (e.g. malformed `gate_id` or no active gate assignment). Stores the raw `gate_id` string, optional parsed UUID and FKs, `result` / `denial_reason`, and an optional `error_code` (internal marker such as `DENY_INVALID_GATE_ID`). |
+| `log` | Event-linked operational audit when a gate and event are known. Requires valid `gate_id` UUID, `event_id`, and `assignment_id` (FK to `gate`, `event`, `gate_assignment`). Omitted for early failures where those cannot be resolved. |
+
+**Deny** responses from the device API use the `denial_reason` enum **values** in JSON (e.g. `INVALID_GATE_ID`, `TICKET_NOT_FOUND`). The database stores the same enum on both tables.
 
 ## Prerequisites
 
@@ -66,7 +77,7 @@ For end-to-end MOSIP (issue ticket / verify), you need both **MOSIP env vars in 
 alembic upgrade head
 ```
 
-This creates all tables (`venue`, `event`, `event_ticket_link`, `gate`, `ticket`, `log`) on the target database. Alembic reads `DATABASE_URL` from `.env` automatically.
+This creates all tables (`venue`, `event`, `event_ticket_link`, `gate`, `gate_assignment`, `ticket`, `log`, `scan_attempt_log`, …) on the target database. Alembic reads `DATABASE_URL` from `.env` automatically.
 
 To roll back to a clean state:
 
@@ -111,7 +122,7 @@ The test suite covers:
 - `POST /verify` rejects requests missing the API key (403)
 - `POST /tickets/issue` rejects requests missing the API key (403)
 - `POST /tickets/issue` handles `identity_not_verified` and `ticket_already_issued`
-- Every denial branch: `invalid_id`, `no_ticket`, `already_used`, `wrong_event`
+- Every denial branch and scan-audit behavior (see tests): e.g. `INVALID_GATE_ID`, `INVALID_GATE_ASSIGNMENT`, `LINK_NOT_FOUND`, `TICKET_NOT_FOUND`, `TICKET_ALREADY_USED`, MOSIP `SERVER_TIMEOUT`
 - Grant path: marks ticket used, returns `ticket_id`
 
 ## Manual Smoke Tests
@@ -151,8 +162,10 @@ curl -X POST http://127.0.0.1:8000/verify \
 
 Expected:
 ```json
-{"result":"deny","ticket_id":null,"reason":"invalid_id"}
+{"result":"deny","ticket_id":null,"reason":"IDENTITY_NOT_VERIFIED"}
 ```
+
+(Empty QR is treated as failed identity verification once the gate and event are resolved; malformed `gate_id` returns e.g. `INVALID_GATE_ID`.)
 
 ### Deny — gate not assigned to an event
 
@@ -165,7 +178,7 @@ curl -X POST http://127.0.0.1:8000/verify \
 
 With a real DB but no `event_id` set on the gate row, expected:
 ```json
-{"result":"deny","ticket_id":null,"reason":"wrong_event"}
+{"result":"deny","ticket_id":null,"reason":"INVALID_GATE_ASSIGNMENT"}
 ```
 
 ### Issue ticket
@@ -201,7 +214,8 @@ gate-server/
 │   │   ├── event.py          # Event ORM model
 │   │   ├── eventticketlink.py # EventTicketLink ORM model
 │   │   ├── gate.py           # Gate ORM model
-│   │   ├── log.py            # Log ORM model
+│   │   ├── log.py            # Log ORM model (event-linked)
+│   │   ├── scan_attempt_log.py # every /verify attempt (incl. pre-resolution)
 │   │   ├── schemas.py        # Pydantic request/response models
 │   │   ├── ticket.py         # Ticket ORM model
 │   │   └── venue.py          # Venue ORM model
@@ -273,14 +287,18 @@ Verifies a PhilSys QR payload and returns a grant or deny decision.
 {"result": "deny", "ticket_id": null, "reason": "<reason>"}
 ```
 
-Denial reasons:
+Denial reasons (enum values; JSON string matches the value column):
 
 | Reason | Cause |
 |---|---|
-| `invalid_id` | QR payload is empty, malformed, or MOSIP verification failed |
-| `wrong_event` | `gate_id` is not a valid UUID or the gate has no event assigned |
-| `no_ticket` | No ticket found linking this attendee's UIN hash to this event |
-| `already_used` | Ticket exists but has already been scanned (status = `USED`) |
+| `INVALID_GATE_ID` | `gate_id` is not a valid UUID string |
+| `INVALID_GATE_ASSIGNMENT` | No active `gate_assignment` for this gate |
+| `IDENTITY_NOT_VERIFIED` | QR empty/invalid, or MOSIP did not verify the identity |
+| `SERVER_TIMEOUT` | MOSIP/transport error (`MOSIPUnavailableError`) |
+| `LINK_NOT_FOUND` | No `event_ticket_link` for this identity hash and event |
+| `TICKET_NOT_FOUND` | No ticket row for the resolved link |
+| `TICKET_ALREADY_USED` | Ticket already `USED` (including race on grant) |
+| `INTERNAL_SERVER_ERROR` | Unhandled error in the verify pipeline (rare) |
 
 **Response 403** — missing or invalid API key
 

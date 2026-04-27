@@ -51,6 +51,8 @@ class VerifyContext(BaseModel):
     result: Optional[ResultEnum] = None
     denial_reason: Optional[DenialReasonEnum] = None
     response: Optional["VerifyResponse"] = None
+    # Set on controlled denies (_deny) or on unhandled exception before result assignment.
+    error_code: Optional[str] = None
 
 
 class VerifiedIdentity(BaseModel):
