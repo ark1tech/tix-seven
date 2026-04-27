@@ -14,7 +14,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-EXPOSE 8000
-
 # Railway will execute start.sh based on railway.json
 CMD ["bash", "start.sh"]
