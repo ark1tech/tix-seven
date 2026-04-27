@@ -3,6 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
+from app.core.trace import get_trace_id
 from app.db.get_db import get_db
 from app.dependencies import (
     require_internal_api_key,
@@ -31,7 +32,8 @@ def issue_tickets(
     service: IssuanceService = Depends(get_issuance_service),
 ) -> IssueResponse:
     logger.info(
-        "issue command accepted: lane=legacy route=/tickets/issue event_id=%s",
+        "issue command accepted: trace_id=%s lane=legacy route=/tickets/issue event_id=%s",
+        get_trace_id(),
         body.event_id,
     )
     return service.issue(body.qr_payload, body.event_id)
@@ -49,7 +51,8 @@ def issue_tickets_dashboard(
     service: IssuanceService = Depends(get_issuance_service),
 ) -> IssueResponse:
     logger.info(
-        "issue command accepted: lane=dashboard route=/dashboard/tickets/issue event_id=%s",
+        "issue command accepted: trace_id=%s lane=dashboard route=/dashboard/tickets/issue event_id=%s",
+        get_trace_id(),
         body.event_id,
     )
     return service.issue(body.qr_payload, body.event_id)

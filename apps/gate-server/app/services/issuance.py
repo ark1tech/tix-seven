@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.adapters.mosip import MOSIPUnavailableError
+from app.core.trace import get_trace_id
 from app.models.enums import TicketStatusEnum
 from app.models.event import Event
 from app.models.event_ticket_link import EventTicketLink
@@ -54,10 +55,20 @@ class IssuanceService:
         Runs the server-side issuance pipeline.
         """
 
+        trace_id = get_trace_id()
+        logger.info(
+            "issue pipeline start: trace_id=%s event_id=%s qr_payload_bytes=%s",
+            trace_id,
+            event_id,
+            len(qr_payload.encode("utf-8")),
+        )
         context = self._init_context(qr_payload, event_id)
 
+        logger.info("issue stage: trace_id=%s step=resolve_event", trace_id)
         context = self._resolve_event(context)  # Pipeline Phase 0, Extra Step
+        logger.info("issue stage: trace_id=%s step=verify_identity", trace_id)
         context = self._verify_identity(context)  # Pipeline Phase 0, Step 3-4
+        logger.info("issue stage: trace_id=%s step=create_ticket_transaction", trace_id)
         context = self._create_ticket_transaction(context)  # Pipeline Phase 0, Step 5
 
         assert context.ticket_id is not None
@@ -83,7 +94,8 @@ class IssuanceService:
 
         if self.db.scalar(stmt) is None:
             logger.warning(
-                "issue failed: reason=event_not_found status_code=404 event_id=%s",
+                "issue failed: reason=event_not_found status_code=404 trace_id=%s event_id=%s",
+                get_trace_id(),
                 ctx.event_id,
             )
             raise HTTPException(status_code=404, detail="event_not_found")
@@ -95,7 +107,8 @@ class IssuanceService:
             verified = self.identity.verify(ctx.qr_payload)
         except MOSIPUnavailableError as exc:
             logger.error(
-                "issue failed: reason=mosip_unavailable status_code=503 event_id=%s",
+                "issue failed: reason=mosip_unavailable status_code=503 trace_id=%s event_id=%s",
+                get_trace_id(),
                 ctx.event_id,
             )
             raise HTTPException(
@@ -104,7 +117,8 @@ class IssuanceService:
 
         if verified is None:
             logger.warning(
-                "issue failed: reason=identity_not_verified status_code=400 event_id=%s",
+                "issue failed: reason=identity_not_verified status_code=400 trace_id=%s event_id=%s",
+                get_trace_id(),
                 ctx.event_id,
             )
             raise HTTPException(status_code=400, detail="identity_not_verified")
@@ -142,14 +156,16 @@ class IssuanceService:
                 if constraint:
                     logger.warning(
                         "issue failed: reason=ticket_already_issued "
-                        "status_code=409 event_id=%s constraint=%s",
+                        "status_code=409 trace_id=%s event_id=%s constraint=%s",
+                        get_trace_id(),
                         ctx.event_id,
                         constraint,
                     )
                 else:
                     logger.warning(
                         "issue failed: reason=ticket_already_issued "
-                        "status_code=409 event_id=%s",
+                        "status_code=409 trace_id=%s event_id=%s",
+                        get_trace_id(),
                         ctx.event_id,
                     )
                 raise HTTPException(
@@ -158,7 +174,8 @@ class IssuanceService:
 
             logger.error(
                 "issue failed: reason=persistence_failed status_code=500 "
-                "event_id=%s stage=%s error_type=%s error=%s",
+                "trace_id=%s event_id=%s stage=%s error_type=%s error=%s",
+                get_trace_id(),
                 ctx.event_id,
                 stage,
                 type(exc).__name__,
@@ -172,7 +189,8 @@ class IssuanceService:
             self.db.rollback()
             logger.error(
                 "issue failed: reason=persistence_failed status_code=500 "
-                "event_id=%s stage=%s error_type=%s error=%s",
+                "trace_id=%s event_id=%s stage=%s error_type=%s error=%s",
+                get_trace_id(),
                 ctx.event_id,
                 stage,
                 type(exc).__name__,
@@ -183,7 +201,8 @@ class IssuanceService:
             ) from exc
 
         logger.info(
-            "issue succeeded: event_id=%s ticket_id=%s link_id=%s status_code=201",
+            "issue succeeded: trace_id=%s event_id=%s ticket_id=%s link_id=%s status_code=201",
+            get_trace_id(),
             ctx.event_id,
             ticket.ticket_id,
             link.link_id,

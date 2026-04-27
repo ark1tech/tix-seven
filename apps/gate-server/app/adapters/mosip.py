@@ -10,6 +10,7 @@ from mosip_auth_sdk.models import DemographicsModel
 from requests import RequestException
 
 from app.core.config import settings
+from app.core.trace import get_trace_id
 
 # Credential files live under apps/gate-server/credentials/ (sibling to app/)
 _CREDS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "credentials")
@@ -141,19 +142,20 @@ class RealMOSIPAdapter:
 
     def verify(self, qr_payload: str) -> VerificationResult:
         if not qr_payload or not qr_payload.strip():
-            _auth_log.info("verify skipped: empty_qr_payload")
+            _auth_log.info("verify skipped: trace_id=%s reason=empty_qr_payload", get_trace_id())
             return VerificationResult(verified=False, uin=None, psut=None)
 
         # splits "UIN and the demographical content of the QR payload"
         uin, demographics = self._parse_qr(qr_payload)
         if uin is None or demographics is None:
-            _auth_log.info("verify skipped: invalid_qr_payload")
+            _auth_log.info("verify skipped: trace_id=%s reason=invalid_qr_payload", get_trace_id())
             return VerificationResult(verified=False, uin=None, psut=None)
 
         ## Calls upon the MOSIP sdk
         try:
             _auth_log.info(
-                "verify start: calling mosip auth endpoint host=%s uin_suffix=%s",
+                "verify start: trace_id=%s calling_mosip_auth host=%s uin_suffix=%s",
+                get_trace_id(),
                 settings.mosip_ida_domain_uri,
                 uin[-4:],
             )
@@ -164,18 +166,21 @@ class RealMOSIPAdapter:
                 consent=True,
             )
             _auth_log.info(
-                "verify request completed: status_code=%s",
+                "verify request completed: trace_id=%s status_code=%s",
+                get_trace_id(),
                 response.status_code,
             )
         except RequestException as exc:
             _auth_log.error(
-                "verify failed: mosip_or_network_fault error=%s",
+                "verify failed: trace_id=%s reason=mosip_or_network_fault error=%s",
+                get_trace_id(),
                 repr(exc),
             )
             raise MOSIPUnavailableError("MOSIP auth request failed") from exc
         except Exception as exc:
             _auth_log.exception(
-                "verify failed: gate_server_fault unexpected_error=%s",
+                "verify failed: trace_id=%s reason=gate_server_fault unexpected_error=%s",
+                get_trace_id(),
                 type(exc).__name__,
             )
             raise
@@ -196,7 +201,11 @@ class RealMOSIPAdapter:
 
         auth_status: bool = inner.get("authStatus", False)
         psut: Optional[str] = inner.get("authToken") if auth_status else None
-        _auth_log.info("verify response parsed: auth_status=%s", auth_status)
+        _auth_log.info(
+            "verify response parsed: trace_id=%s auth_status=%s",
+            get_trace_id(),
+            auth_status,
+        )
 
         return VerificationResult(
             verified=auth_status,
@@ -253,7 +262,10 @@ class RealMOSIPAdapter:
             return str(uin), demographics
 
         except json.JSONDecodeError:
-            _auth_log.warning("parse_qr failed: json_decode_error")
+            _auth_log.warning(
+                "parse_qr failed: trace_id=%s reason=json_decode_error",
+                get_trace_id(),
+            )
             return None, None
 
 
