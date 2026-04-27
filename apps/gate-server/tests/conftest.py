@@ -55,11 +55,5 @@ def client() -> TestClient:
 
 @pytest.fixture
 def auth_headers() -> dict:
-    """X-Gate-Api-Key for /verify (hardware key, or legacy if unset)."""
-    return {"X-Gate-Api-Key": settings.effective_hardware_api_key}
-
-
-@pytest.fixture
-def issue_auth_headers() -> dict:
-    """X-Gate-Api-Key for legacy POST /tickets/issue (GATE_API_KEY only)."""
-    return {"X-Gate-Api-Key": settings.gate_api_key}
+    """X-Gate-Api-Key for /verify (hardware key)."""
+    return {"X-Gate-Api-Key": settings.gate_hardware_api_key}

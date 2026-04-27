@@ -18,21 +18,11 @@ def _unauthorized(detail: str = "not authenticated") -> HTTPException:
     return HTTPException(status_code=401, detail=detail)
 
 
-def require_legacy_gate_api_key(
-    api_key: str | None = Security(_x_gate_api_key_header),
-) -> str:
-    """POST /tickets/issue (compatibility): X-Gate-Api-Key must match legacy GATE_API_KEY."""
-    if api_key is None or api_key != settings.gate_api_key:
-        raise _unauthorized()
-    return api_key
-
-
 def require_gate_hardware_api_key(
     api_key: str | None = Security(_x_gate_api_key_header),
 ) -> str:
-    """POST /verify: X-Gate-Api-Key must match GATE_HARDWARE_API_KEY or legacy GATE_API_KEY."""
-    expected = settings.effective_hardware_api_key
-    if api_key is None or api_key != expected:
+    """POST /verify: X-Gate-Api-Key must match GATE_HARDWARE_API_KEY."""
+    if api_key is None or api_key != settings.gate_hardware_api_key:
         raise _unauthorized()
     return api_key
 
@@ -40,9 +30,8 @@ def require_gate_hardware_api_key(
 def require_internal_api_key(
     internal_key: str | None = Security(_x_internal_api_key_header),
 ) -> str:
-    """Dashboard command routes: X-Internal-Api-Key must match INTERNAL_API_KEY or legacy key."""
-    expected = settings.effective_internal_api_key
-    if internal_key is None or internal_key != expected:
+    """Dashboard command routes: X-Internal-Api-Key must match INTERNAL_API_KEY."""
+    if internal_key is None or internal_key != settings.internal_api_key:
         raise _unauthorized()
     return internal_key
 

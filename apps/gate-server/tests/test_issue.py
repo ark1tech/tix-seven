@@ -27,14 +27,6 @@ _DASH = "/dashboard/tickets/issue"
 _DASH_JSON = {"qr_payload": "{}", "event_id": str(uuid.uuid4())}
 
 
-def test_issue_requires_api_key(client: TestClient):
-    res = client.post(
-        "/tickets/issue",
-        json={"qr_payload": "{}", "event_id": str(uuid.uuid4())},
-    )
-    assert res.status_code == 401
-
-
 def test_ticket_created_at_defaults_to_philippine_wall_clock() -> None:
     assert str(Ticket.__table__.c.created_at.server_default.arg) == PHT_NOW_SQL
 
@@ -43,68 +35,6 @@ def test_operational_log_defaults_to_philippine_wall_clock() -> None:
     assert str(Log.__table__.c.timestamp.server_default.arg) == PHT_NOW_SQL
     # `scan_attempt_log` uses database `now()`; operational `log` uses Philippine wall clock.
     assert str(ScanAttemptLog.__table__.c.timestamp.server_default.arg) == "now()"
-
-
-def test_issue_empty_qr_400(
-    client: TestClient,
-    issue_auth_headers: dict,
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
-):
-    # FakeSession has no Event row; skip DB event resolution so we hit identity verification.
-    monkeypatch.setattr(
-        IssuanceService,
-        "_resolve_event",
-        lambda self, ctx: ctx,
-    )
-
-    res = client.post(
-        "/tickets/issue",
-        json={"qr_payload": "", "event_id": str(uuid.uuid4())},
-        headers=issue_auth_headers,
-    )
-    assert res.status_code == 400
-    assert res.json()["detail"] == "identity_not_verified"
-    assert "issue failed: reason=identity_not_verified" in caplog.text
-
-
-def test_issue_missing_event_logs_reason(
-    client: TestClient, issue_auth_headers: dict, caplog: pytest.LogCaptureFixture
-) -> None:
-    res = client.post(
-        "/tickets/issue",
-        json={"qr_payload": '{"uin":"x","name":"A"}', "event_id": str(uuid.uuid4())},
-        headers=issue_auth_headers,
-    )
-    assert res.status_code == 404
-    assert res.json()["detail"] == "event_not_found"
-    assert "issue failed: reason=event_not_found" in caplog.text
-
-
-def test_issue_happy_path(
-    client: TestClient, issue_auth_headers: dict, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    tid, lid = uuid.uuid4(), uuid.uuid4()
-    at = datetime.now(timezone.utc)
-
-    def fake_issue(
-        _self: IssuanceService, _qr: str, _eid: uuid.UUID
-    ) -> IssueResponse:
-        return IssueResponse(
-            ticket_id=tid, link_id=lid, status="UNUSED", created_at=at
-        )
-
-    monkeypatch.setattr(IssuanceService, "issue", fake_issue)
-    res = client.post(
-        "/tickets/issue",
-        json={"qr_payload": '{"uin":"x","name":"A"}', "event_id": str(uuid.uuid4())},
-        headers=issue_auth_headers,
-    )
-    assert res.status_code == 201
-    body = res.json()
-    assert body["ticket_id"] == str(tid)
-    assert body["link_id"] == str(lid)
-    assert body["status"] == "UNUSED"
 
 
 def test_issuance_duplicate_link_hash_409(caplog: pytest.LogCaptureFixture) -> None:
@@ -283,7 +213,7 @@ def test_dashboard_hardware_key_only_401(
     res = client.post(
         _DASH,
         json=_DASH_JSON,
-        headers={"X-Gate-Api-Key": settings.effective_hardware_api_key},
+        headers={"X-Gate-Api-Key": settings.gate_hardware_api_key},
     )
     assert res.status_code == 401
 

@@ -9,12 +9,10 @@ function requireGateServerUrl(): string {
 }
 
 function resolveInternalApiKey(): string {
-  const primary = process.env.GATE_SERVER_INTERNAL_API_KEY?.trim();
-  if (primary) return primary;
-  const fallback = process.env.GATE_SERVER_API_KEY?.trim();
-  if (fallback) return fallback;
+  const key = process.env.GATE_SERVER_INTERNAL_API_KEY?.trim();
+  if (key) return key;
   throw new Error(
-    "Missing required environment variable: GATE_SERVER_INTERNAL_API_KEY (or temporary alias GATE_SERVER_API_KEY)",
+    "Missing required environment variable: GATE_SERVER_INTERNAL_API_KEY",
   );
 }
 
