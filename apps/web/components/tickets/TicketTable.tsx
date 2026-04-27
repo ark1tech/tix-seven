@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatPhtDateTimeShort, parsePhtEventTimestampToDate } from "@/lib/datetime-pht";
 import { cn } from "@/lib/utils";
 import type { Ticket } from "@tix-seven/types";
 import { Filter, ArrowUpDown } from "lucide-react";
@@ -31,8 +32,8 @@ export default function TicketTable({ tickets }: { tickets: Ticket[] }) {
   });
 
   const sortedTickets = [...filteredTickets].sort((a, b) => {
-    const timeA = new Date(a.created_at).getTime();
-    const timeB = new Date(b.created_at).getTime();
+    const timeA = parsePhtEventTimestampToDate(a.created_at).getTime();
+    const timeB = parsePhtEventTimestampToDate(b.created_at).getTime();
     return sort === "Newest" ? timeB - timeA : timeA - timeB;
   });
 
@@ -41,7 +42,9 @@ export default function TicketTable({ tickets }: { tickets: Ticket[] }) {
       <div className="flex items-center justify-between">
         <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mr-4">Ticket Registry</h2>
         <div className="flex items-center gap-1.5 flex-wrap flex-1 justify-end">
-          <Select modal={false} value={filter} onValueChange={(v) => { if (v) setFilter(v as any); }}>
+          <Select modal={false} value={filter} onValueChange={(v) => {
+            if (v) setFilter(v as "All" | "Active" | "Used");
+          }}>
             <SelectTrigger className="h-8 px-2 text-xs border-transparent hover:bg-muted/60 transition-colors bg-transparent shadow-none w-auto gap-1.5 text-muted-foreground font-medium focus-visible:ring-0 data-[open]:bg-muted/80 data-[open]:text-foreground rounded-md">
               <Filter className="h-3.5 w-3.5 shrink-0" />
               <SelectValue />
@@ -53,7 +56,9 @@ export default function TicketTable({ tickets }: { tickets: Ticket[] }) {
             </SelectContent>
           </Select>
 
-          <Select modal={false} value={sort} onValueChange={(v) => { if (v) setSort(v as any); }}>
+          <Select modal={false} value={sort} onValueChange={(v) => {
+            if (v) setSort(v as "Newest" | "Oldest");
+          }}>
             <SelectTrigger className="h-8 px-2 text-xs border-transparent hover:bg-muted/60 transition-colors bg-transparent shadow-none w-auto gap-1.5 text-muted-foreground font-medium focus-visible:ring-0 data-[open]:bg-muted/80 data-[open]:text-foreground rounded-md">
               <ArrowUpDown className="h-3.5 w-3.5 shrink-0" />
               <SelectValue />
@@ -100,8 +105,8 @@ export default function TicketTable({ tickets }: { tickets: Ticket[] }) {
                   </span>
                 </TableCell>
                 <TableCell className="py-2 px-3 text-xs text-muted-foreground">
-                  <time suppressHydrationWarning>
-                    {new Intl.DateTimeFormat(undefined, { dateStyle: "short", timeStyle: "short" }).format(new Date(ticket.created_at))}
+                  <time dateTime={ticket.created_at.replace(" ", "T")}>
+                    {formatPhtDateTimeShort(ticket.created_at)}
                   </time>
                 </TableCell>
               </TableRow>

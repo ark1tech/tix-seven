@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { phtEventTimestampZ } from "@/lib/datetime-pht";
 import { createClient } from "@/lib/supabase/server";
 import { getEvent, updateEvent } from "@/lib/db/events";
 
 const UpdateEventSchema = z.object({
   name: z.string().min(1).optional(),
-  start_time: z.string().datetime().optional(),
-  end_time: z.string().datetime().optional(),
+  start_time: phtEventTimestampZ.optional(),
+  end_time: phtEventTimestampZ.optional(),
   venue_name: z.string().min(1).optional(),
   capacity: z.number().int().positive().optional(),
 });

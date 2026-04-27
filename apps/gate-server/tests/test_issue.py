@@ -11,6 +11,9 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.adapters.mosip import MOSIPUnavailableError, StubMOSIPAdapter
 from app.main import app
+from app.db.time import PHT_NOW_SQL
+from app.models.log import Log
+from app.models.scan_attempt_log import ScanAttemptLog
 from app.models.schemas import IssueResponse
 from app.routers.issue import get_issuance_service
 from app.models.event_ticket_link import EventTicketLink
@@ -25,6 +28,15 @@ def test_issue_requires_api_key(client: TestClient):
         json={"qr_payload": "{}", "event_id": str(uuid.uuid4())},
     )
     assert res.status_code == 403
+
+
+def test_ticket_created_at_defaults_to_philippine_wall_clock() -> None:
+    assert str(Ticket.__table__.c.created_at.server_default.arg) == PHT_NOW_SQL
+
+
+def test_operational_log_defaults_to_philippine_wall_clock() -> None:
+    assert str(Log.__table__.c.timestamp.server_default.arg) == PHT_NOW_SQL
+    assert str(ScanAttemptLog.__table__.c.timestamp.server_default.arg) == PHT_NOW_SQL
 
 
 def test_issue_empty_qr_400(

@@ -1,11 +1,16 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  formatEventDateMediumPht,
+  formatEventDayNumericPht,
+  formatEventMonthShortPht,
+} from "@/lib/datetime-pht";
 import type { Event } from "@tix-seven/types";
 
 export default function EventCard({ event }: { event: Event }) {
-  const date = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(event.start_time));
-  const month = new Intl.DateTimeFormat(undefined, { month: "short" }).format(new Date(event.start_time));
-  const day = new Intl.DateTimeFormat(undefined, { day: "numeric" }).format(new Date(event.start_time));
+  const date = formatEventDateMediumPht(event.start_time);
+  const month = formatEventMonthShortPht(event.start_time);
+  const day = formatEventDayNumericPht(event.start_time);
 
   return (
     <Link href={`/events/${event.event_id}`}>
@@ -22,12 +27,16 @@ export default function EventCard({ event }: { event: Event }) {
         <CardContent className="flex flex-col gap-3 flex-1 justify-between">
           <div className="text-sm text-muted-foreground flex flex-col gap-0.5">
             <span>{event.venue_name}</span>
-            <time suppressHydrationWarning className="text-xs">{date}</time>
+            <time className="text-xs" dateTime={event.start_time.replace(" ", "T")}>
+              {date}
+            </time>
           </div>
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>Capacity</span>
-              <span className="font-medium text-foreground">{event.capacity.toLocaleString()}</span>
+              <span className="font-medium text-foreground">
+                {event.capacity.toLocaleString("en-PH")}
+              </span>
             </div>
             <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
               <div className="h-1 rounded-full bg-primary" style={{ width: "0%" }} />

@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  datetimeLocalInputToPhtSqlTimestamp,
+  eventTimestampToDatetimeLocalValue,
+} from "@/lib/datetime-pht";
 import type { Event } from "@tix-seven/types";
 
 interface Props {
@@ -17,10 +21,10 @@ export default function EventForm({ event }: Props) {
 
   const [name, setName] = useState(event?.name ?? "");
   const [startTime, setStartTime] = useState(
-    event ? event.start_time.slice(0, 16) : ""
+    event ? eventTimestampToDatetimeLocalValue(event.start_time) : ""
   );
   const [endTime, setEndTime] = useState(
-    event ? event.end_time.slice(0, 16) : ""
+    event ? eventTimestampToDatetimeLocalValue(event.end_time) : ""
   );
   const [venueName, setVenueName] = useState(event?.venue_name ?? "");
   const [capacity, setCapacity] = useState(
@@ -36,8 +40,8 @@ export default function EventForm({ event }: Props) {
 
     const payload = {
       name,
-      start_time: new Date(startTime).toISOString(),
-      end_time: new Date(endTime).toISOString(),
+      start_time: datetimeLocalInputToPhtSqlTimestamp(startTime),
+      end_time: datetimeLocalInputToPhtSqlTimestamp(endTime),
       venue_name: venueName,
       capacity: parseInt(capacity, 10),
     };

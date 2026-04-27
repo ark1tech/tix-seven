@@ -1,10 +1,11 @@
-from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, func, Index
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 import uuid, datetime
 
 from app.db.base import Base
+from app.db.time import pht_now_server_default
 from app.models.enums import DenialReasonEnum, ResultEnum
 
 from typing import TYPE_CHECKING, Optional
@@ -50,7 +51,7 @@ class Log(Base):
     )
 
     timestamp: Mapped[datetime.datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime, server_default=pht_now_server_default(), nullable=False
     )
 
     # Relationships

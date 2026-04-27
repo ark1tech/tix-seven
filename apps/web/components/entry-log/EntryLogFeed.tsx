@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatPhtTimeMedium, parsePhtEventTimestampToDate } from "@/lib/datetime-pht";
 import { cn } from "@/lib/utils";
 import type { Log } from "@tix-seven/types";
 
@@ -54,8 +55,8 @@ export default function EntryLogFeed({ eventId, initialLogs }: Props) {
   });
 
   const sortedLogs = [...filteredLogs].sort((a, b) => {
-    const timeA = new Date(a.timestamp).getTime();
-    const timeB = new Date(b.timestamp).getTime();
+    const timeA = parsePhtEventTimestampToDate(a.timestamp).getTime();
+    const timeB = parsePhtEventTimestampToDate(b.timestamp).getTime();
     return sort === "Newest" ? timeB - timeA : timeA - timeB;
   });
 
@@ -114,8 +115,8 @@ export default function EntryLogFeed({ eventId, initialLogs }: Props) {
         {sortedLogs.map((log, i) => (
           <TableRow key={log.log_id} className={cn(i % 2 === 1 && "bg-muted/40")}>
             <TableCell className="py-2 px-3 text-xs text-muted-foreground">
-              <time suppressHydrationWarning>
-                {new Intl.DateTimeFormat(undefined, { timeStyle: "medium" }).format(new Date(log.timestamp))}
+              <time dateTime={log.timestamp.replace(" ", "T")}>
+                {formatPhtTimeMedium(log.timestamp)}
               </time>
             </TableCell>
             <TableCell className="py-2 px-3">
