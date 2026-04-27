@@ -5,14 +5,36 @@ Python FastAPI service that receives PhilSys QR payloads from ESP8266 gate hardw
 ## Overview
 
 ```
-ESP8266 gate  ──POST /verify──▶  gate-server  ──▶  MOSIP IDA (QR verification)
+Organizer dashboard ──server action──▶ gate-server POST /dashboard/tickets/issue
+   (session → Authorization: Bearer <JWT>)      (X-Internal-Api-Key + Bearer)
+
+ESP8266 gate  ──POST /verify + X-Gate-Api-Key──▶  gate-server  ──▶  MOSIP IDA (QR verification)
                                       │
                                       ▼
                                Supabase / Postgres
             (gates, tickets, event_ticket_links, log, scan_attempt_log)
 ```
 
-A physical gate device scans a PhilSys QR code, sends the raw payload to this server with a pre-shared API key, and receives either `{"result":"grant"}` or `{"result":"deny","reason":"..."}`. The server verifies the QR against MOSIP's Identity Authentication API, checks that the attendee holds a valid unused ticket for the correct event, atomically marks the ticket used, and writes audit rows (see [Audit and logging](#audit-and-logging)).
+A physical gate device scans a PhilSys QR code, sends the raw payload to this server with the hardware API key in `X-Gate-Api-Key`, and receives either `{"result":"grant"}` or `{"result":"deny","reason":"..."}`. The server verifies the QR against MOSIP's Identity Authentication API, checks that the attendee holds a valid unused ticket for the correct event, atomically marks the ticket used, and writes audit rows (see [Audit and logging](#audit-and-logging)).
+
+The organizer dashboard issues tickets through a **Next.js server action** that calls this FastAPI app’s **`POST /dashboard/tickets/issue`** route with `Authorization: Bearer <access token>` plus `X-Internal-Api-Key`. Hardware never uses that path; it uses **`POST /verify`** only.
+
+### Routes and credentials (target contract)
+
+| Caller | Gate-server route | Required credentials |
+| --- | --- | --- |
+| ESP8266 firmware | `POST /verify` | `X-Gate-Api-Key` matching `GATE_HARDWARE_API_KEY` (see `.env.example`) |
+| Next.js (dashboard) | `POST /dashboard/tickets/issue` | `X-Internal-Api-Key` matching `INTERNAL_API_KEY`, plus `Authorization: Bearer` for the organizer JWT |
+| Legacy clients (temporary) | `POST /tickets/issue` | `X-Gate-Api-Key` matching `GATE_API_KEY` until cutover |
+
+Missing or invalid authentication on protected gate-server routes should return **401 Unauthorized** (not 403), so clients can distinguish auth failures from forbidden business rules.
+
+### Safe rollout sequence
+
+1. **Gate-server secrets first** — Deploy with `INTERNAL_API_KEY`, `GATE_HARDWARE_API_KEY`, and JWKS-backed bearer verification configured (derived from `SUPABASE_URL` or explicit `SUPABASE_JWKS_URL`). Keep **`GATE_API_KEY`** populated as a **temporary legacy fallback** so existing firmware or web clients that only send `X-Gate-Api-Key` keep working.
+2. **Web secret second** — Deploy the Next.js app with **`GATE_SERVER_INTERNAL_API_KEY`** matching gate-server **`INTERNAL_API_KEY`**. If needed during migration, set **`GATE_SERVER_API_KEY`** (web-only) to the same value as gate-server **`GATE_API_KEY`** when the primary web var is unset — it is still sent as **`X-Internal-Api-Key`** to **`POST /dashboard/tickets/issue`**, not as `X-Gate-Api-Key`.
+3. **Cutover validation** — Flash firmware to use the hardware key; confirm `POST /verify`. Exercise **`POST /dashboard/tickets/issue`** end-to-end; confirm it accepts internal + bearer and rejects bad keys with **401**.
+4. **Retire legacy** — When traffic no longer depends on the single shared key, clear or rotate `GATE_API_KEY` / `GATE_SERVER_API_KEY` and remove compatibility code paths.
 
 ## Audit and logging
 
@@ -64,9 +86,14 @@ Open `.env` and fill in every value:
 |---|---|
 | `SUPABASE_URL` | Your Supabase project URL (`https://<ref>.supabase.co`) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role key from Supabase Dashboard → Project Settings → API. Bypasses RLS — keep secret. |
+| `SUPABASE_JWKS_URL` | Optional Supabase JWKS endpoint override. If empty, derived as `<SUPABASE_URL>/auth/v1/.well-known/jwks.json`. |
+| `SUPABASE_JWT_EXPECTED_ISS` | Optional JWT issuer override. Defaults to `<SUPABASE_URL>/auth/v1`. |
+| `SUPABASE_JWT_EXPECTED_AUD` | Optional JWT audience override. Defaults to `authenticated`. |
 | `DATABASE_URL` | Direct Postgres URI. Get from Supabase Dashboard → Project Settings → Database → URI. Use port **5432** (not the pooler). |
 | `HMAC_PEPPER` | 32-byte hex secret. **Must match `HMAC_PEPPER` in the web app `.env.local`.** Generate: `openssl rand -hex 32` |
-| `GATE_API_KEY` | Pre-shared key sent by ESP8266 in `X-Gate-Api-Key`. Generate: `openssl rand -hex 32` |
+| `INTERNAL_API_KEY` | Pre-shared key for trusted backends (Next.js). Sent as `X-Internal-Api-Key` on `POST /dashboard/tickets/issue`. Must match `GATE_SERVER_INTERNAL_API_KEY` in the web app. |
+| `GATE_HARDWARE_API_KEY` | Pre-shared key for ESP8266 on `POST /verify` (`X-Gate-Api-Key`). Generate: `openssl rand -hex 32` |
+| `GATE_API_KEY` | **Temporary legacy fallback** — single key used before the split above. Keep set during migration for old clients; remove after cutover. |
 
 For end-to-end MOSIP (issue ticket / verify), you need both **MOSIP env vars in `.env`** and the **three credential files** under `credentials/`; tests inject `StubMOSIPAdapter` only. See [MOSIP Credentials](#mosip-credentials) below.
 
@@ -119,15 +146,15 @@ pytest -x
 
 The test suite covers:
 - `GET /health` returns `{"status":"ok","db":"ok"}`
-- `POST /verify` rejects requests missing the API key (403)
-- `POST /tickets/issue` rejects requests missing the API key (403)
-- `POST /tickets/issue` handles `identity_not_verified` and `ticket_already_issued`
+- `POST /verify` rejects requests missing or invalid hardware auth (**401**)
+- `POST /dashboard/tickets/issue` rejects requests missing/invalid internal key or bearer (**401**)
+- Legacy `POST /tickets/issue` (X-Gate-Api-Key) remains available during migration and handles `identity_not_verified` / `ticket_already_issued`
 - Every denial branch and scan-audit behavior (see tests): e.g. `INVALID_GATE_ID`, `INVALID_GATE_ASSIGNMENT`, `LINK_NOT_FOUND`, `TICKET_NOT_FOUND`, `TICKET_ALREADY_USED`, MOSIP `SERVER_TIMEOUT`
 - Grant path: marks ticket used, returns `ticket_id`
 
 ## Manual Smoke Tests
 
-Make sure the server is running (`python -m uvicorn app.main:app --reload`) and substitute your `GATE_API_KEY` value.
+Make sure the server is running (`python -m uvicorn app.main:app --reload`) and substitute your hardware key (`GATE_HARDWARE_API_KEY`, or `GATE_API_KEY` during legacy rollout).
 
 ### Health check
 
@@ -149,14 +176,14 @@ curl -s -o /dev/null -w "%{http_code}" \
   -d '{"qr_payload":"test","gate_id":"11111111-1111-1111-1111-111111111111"}'
 ```
 
-Expected: `403`
+Expected: **401**
 
 ### Deny — invalid QR (empty payload)
 
 ```bash
 curl -X POST http://127.0.0.1:8000/verify \
   -H "Content-Type: application/json" \
-  -H "X-Gate-Api-Key: YOUR_GATE_API_KEY" \
+  -H "X-Gate-Api-Key: YOUR_GATE_HARDWARE_API_KEY" \
   -d '{"qr_payload":"","gate_id":"11111111-1111-1111-1111-111111111111"}'
 ```
 
@@ -172,7 +199,7 @@ Expected:
 ```bash
 curl -X POST http://127.0.0.1:8000/verify \
   -H "Content-Type: application/json" \
-  -H "X-Gate-Api-Key: YOUR_GATE_API_KEY" \
+  -H "X-Gate-Api-Key: YOUR_GATE_HARDWARE_API_KEY" \
   -d '{"qr_payload":"1234567890123456|2000-01-01","gate_id":"<valid-gate-uuid>"}'
 ```
 
@@ -181,12 +208,22 @@ With a real DB but no `event_id` set on the gate row, expected:
 {"result":"deny","ticket_id":null,"reason":"INVALID_GATE_ASSIGNMENT"}
 ```
 
-### Issue ticket
+### Issue ticket (legacy `X-Gate-Api-Key` during rollout)
 
 ```bash
 curl -X POST http://127.0.0.1:8000/tickets/issue \
   -H "Content-Type: application/json" \
-  -H "X-Gate-Api-Key: YOUR_GATE_API_KEY" \
+  -H "X-Gate-Api-Key: YOUR_LEGACY_GATE_API_KEY" \
+  -d '{"qr_payload":"{\"uin\":\"123456789012\",\"name\":\"Sample User\"}","event_id":"<valid-event-uuid>"}'
+```
+
+### Issue ticket (dashboard route: internal key + bearer)
+
+```bash
+curl -X POST http://127.0.0.1:8000/dashboard/tickets/issue \
+  -H "Content-Type: application/json" \
+  -H "X-Internal-Api-Key: YOUR_INTERNAL_API_KEY" \
+  -H "Authorization: Bearer YOUR_SUPABASE_ACCESS_JWT" \
   -d '{"qr_payload":"{\"uin\":\"123456789012\",\"name\":\"Sample User\"}","event_id":"<valid-event-uuid>"}'
 ```
 
@@ -221,7 +258,7 @@ gate-server/
 │   │   └── venue.py          # Venue ORM model
 │   ├── routers/
 │   │   ├── health.py         # GET /health
-│   │   ├── issue.py          # POST /tickets/issue (auth + DI wiring)
+│   │   ├── issue.py          # POST /tickets/issue + /dashboard/tickets/issue
 │   │   └── verify.py         # POST /verify (auth + DI wiring)
 │   ├── services/
 │   │   ├── issuance.py       # IssuanceService — ticket registration flow
@@ -265,7 +302,7 @@ Verifies a PhilSys QR payload and returns a grant or deny decision.
 
 | Header | Required | Description |
 |---|---|---|
-| `X-Gate-Api-Key` | Yes | Pre-shared key matching `GATE_API_KEY` in `.env` |
+| `X-Gate-Api-Key` | Yes | Pre-shared key matching `GATE_HARDWARE_API_KEY` (or legacy `GATE_API_KEY`) |
 | `Content-Type` | Yes | `application/json` |
 
 **Request body**
@@ -300,19 +337,21 @@ Denial reasons (enum values; JSON string matches the value column):
 | `TICKET_ALREADY_USED` | Ticket already `USED` (including race on grant) |
 | `INTERNAL_SERVER_ERROR` | Unhandled error in the verify pipeline (rare) |
 
-**Response 403** — missing or invalid API key
+**Response 401** — missing or invalid `X-Gate-Api-Key` (target contract)
 
 ---
 
-### `POST /tickets/issue`
+### `POST /dashboard/tickets/issue`
 
-Verifies a PhilSys QR payload and issues an event ticket for first-time registrations.
+Verifies a PhilSys QR payload and issues an event ticket for dashboard-originated commands.
 
 **Headers**
 
 | Header | Required | Description |
 |---|---|---|
-| `X-Gate-Api-Key` | Yes | Pre-shared key matching `GATE_API_KEY` in `.env` |
+| `X-Internal-Api-Key` | Yes | Matches `INTERNAL_API_KEY` in `.env`, or `GATE_API_KEY` when `INTERNAL_API_KEY` is unset (migration fallback) |
+| `Authorization` | Yes | `Bearer <Supabase access JWT>` — validated with Supabase JWKS (ES256) |
+| `X-Trace-Id` | No | Correlation id (e.g. UUID); echoed on the response |
 | `Content-Type` | Yes | `application/json` |
 
 **Request body**
@@ -349,7 +388,18 @@ Verifies a PhilSys QR payload and issues an event ticket for first-time registra
 {"detail":"ticket_already_issued"}
 ```
 
-**Response 403** — missing or invalid API key
+**Response 401** — missing or invalid internal key and/or bearer
+
+### `POST /tickets/issue` (legacy compatibility)
+
+Temporary backward-compatible issue route while migration is in progress.
+
+| Header | Required | Description |
+|---|---|---|
+| `X-Gate-Api-Key` | Yes | Matches `GATE_API_KEY` |
+| `Content-Type` | Yes | `application/json` |
+
+Response payloads and domain error semantics are the same as `POST /dashboard/tickets/issue`.
 
 ## MOSIP Credentials
 
@@ -396,4 +446,4 @@ uvicorn app.main:app --host 0.0.0.0 --port $PORT
 
 ## CORS
 
-`allow_origins` is set to `[]` in `main.py` — this blocks all browser-origin requests, which is intentional since only ESP8266 firmware calls this server. If a web dashboard ever needs direct access, add the dashboard origin to the `allow_origins` list in `app/main.py`.
+`allow_origins` is set to `[]` in `main.py` — this blocks all browser-origin requests, which is intentional: hardware and the Next.js **server** call gate-server, not the browser. If you ever expose gate-server to browser clients, add the origin to `allow_origins` and extend `allow_headers` (e.g. `Authorization`, `X-Internal-Api-Key`) in `app/main.py`.
