@@ -79,7 +79,10 @@ export async function issueTicket(
   if (res.status === 404 && detail === "event_not_found") {
     return { ok: false, error: "event_not_found" };
   }
-  if (res.status === 409 && detail === "already_issued") {
+  if (
+    res.status === 409 &&
+    (detail === "already_issued" || detail === "ticket_already_issued")
+  ) {
     return { ok: false, error: "already_issued" };
   }
   if (res.status === 500 && detail === "internal_server_error") {
