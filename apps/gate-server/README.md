@@ -25,16 +25,17 @@ The organizer dashboard issues tickets through a **Next.js server action** that 
 | --- | --- | --- |
 | ESP8266 firmware | `POST /verify` | `X-Gate-Api-Key` matching `GATE_HARDWARE_API_KEY` (see `.env.example`) |
 | Next.js (dashboard) | `POST /dashboard/tickets/issue` | `X-Internal-Api-Key` matching `INTERNAL_API_KEY`, plus `Authorization: Bearer` for the organizer JWT |
-| Legacy clients (temporary) | `POST /tickets/issue` | `X-Gate-Api-Key` matching `GATE_API_KEY` until cutover |
 
 Missing or invalid authentication on protected gate-server routes should return **401 Unauthorized** (not 403), so clients can distinguish auth failures from forbidden business rules.
 
-### Safe rollout sequence
+### Credential setup
 
-1. **Gate-server secrets first** — Deploy with `INTERNAL_API_KEY`, `GATE_HARDWARE_API_KEY`, and JWKS-backed bearer verification configured (derived from `SUPABASE_URL` or explicit `SUPABASE_JWKS_URL`). Keep **`GATE_API_KEY`** populated as a **temporary legacy fallback** so existing firmware or web clients that only send `X-Gate-Api-Key` keep working.
-2. **Web secret second** — Deploy the Next.js app with **`GATE_SERVER_INTERNAL_API_KEY`** matching gate-server **`INTERNAL_API_KEY`**. If needed during migration, set **`GATE_SERVER_API_KEY`** (web-only) to the same value as gate-server **`GATE_API_KEY`** when the primary web var is unset — it is still sent as **`X-Internal-Api-Key`** to **`POST /dashboard/tickets/issue`**, not as `X-Gate-Api-Key`.
-3. **Cutover validation** — Flash firmware to use the hardware key; confirm `POST /verify`. Exercise **`POST /dashboard/tickets/issue`** end-to-end; confirm it accepts internal + bearer and rejects bad keys with **401**.
-4. **Retire legacy** — When traffic no longer depends on the single shared key, clear or rotate `GATE_API_KEY` / `GATE_SERVER_API_KEY` and remove compatibility code paths.
+Each service uses its own key. Set both in `.env` before starting:
+
+- `INTERNAL_API_KEY` — server-to-server; must match `GATE_SERVER_INTERNAL_API_KEY` in the web app
+- `GATE_HARDWARE_API_KEY` — firmware-to-gate; set on ESP8266 devices
+
+Legacy single-key rollout is complete; `GATE_API_KEY` has been retired.
 
 ## Audit and logging
 
@@ -93,7 +94,6 @@ Open `.env` and fill in every value:
 | `HMAC_PEPPER` | 32-byte hex secret. **Must match `HMAC_PEPPER` in the web app `.env.local`.** Generate: `openssl rand -hex 32` |
 | `INTERNAL_API_KEY` | Pre-shared key for trusted backends (Next.js). Sent as `X-Internal-Api-Key` on `POST /dashboard/tickets/issue`. Must match `GATE_SERVER_INTERNAL_API_KEY` in the web app. |
 | `GATE_HARDWARE_API_KEY` | Pre-shared key for ESP8266 on `POST /verify` (`X-Gate-Api-Key`). Generate: `openssl rand -hex 32` |
-| `GATE_API_KEY` | **Temporary legacy fallback** — single key used before the split above. Keep set during migration for old clients; remove after cutover. |
 
 For end-to-end MOSIP (issue ticket / verify), you need both **MOSIP env vars in `.env`** and the **three credential files** under `credentials/`; tests inject `StubMOSIPAdapter` only. See [MOSIP Credentials](#mosip-credentials) below.
 
@@ -148,13 +148,12 @@ The test suite covers:
 - `GET /health` returns `{"status":"ok","db":"ok"}`
 - `POST /verify` rejects requests missing or invalid hardware auth (**401**)
 - `POST /dashboard/tickets/issue` rejects requests missing/invalid internal key or bearer (**401**)
-- Legacy `POST /tickets/issue` (X-Gate-Api-Key) remains available during migration and handles `identity_not_verified` / `ticket_already_issued`
 - Every denial branch and scan-audit behavior (see tests): e.g. `INVALID_GATE_ID`, `INVALID_GATE_ASSIGNMENT`, `LINK_NOT_FOUND`, `TICKET_NOT_FOUND`, `TICKET_ALREADY_USED`, MOSIP `SERVER_TIMEOUT`
 - Grant path: marks ticket used, returns `ticket_id`
 
 ## Manual Smoke Tests
 
-Make sure the server is running (`python -m uvicorn app.main:app --reload`) and substitute your hardware key (`GATE_HARDWARE_API_KEY`, or `GATE_API_KEY` during legacy rollout).
+Make sure the server is running (`python -m uvicorn app.main:app --reload`) and substitute your hardware key (`GATE_HARDWARE_API_KEY`).
 
 ### Health check
 
@@ -206,15 +205,6 @@ curl -X POST http://127.0.0.1:8000/verify \
 With a real DB but no `event_id` set on the gate row, expected:
 ```json
 {"result":"deny","ticket_id":null,"reason":"INVALID_GATE_ASSIGNMENT"}
-```
-
-### Issue ticket (legacy `X-Gate-Api-Key` during rollout)
-
-```bash
-curl -X POST http://127.0.0.1:8000/tickets/issue \
-  -H "Content-Type: application/json" \
-  -H "X-Gate-Api-Key: YOUR_LEGACY_GATE_API_KEY" \
-  -d '{"qr_payload":"{\"uin\":\"123456789012\",\"name\":\"Sample User\"}","event_id":"<valid-event-uuid>"}'
 ```
 
 ### Issue ticket (dashboard route: internal key + bearer)
@@ -302,7 +292,7 @@ Verifies a PhilSys QR payload and returns a grant or deny decision.
 
 | Header | Required | Description |
 |---|---|---|
-| `X-Gate-Api-Key` | Yes | Pre-shared key matching `GATE_HARDWARE_API_KEY` (or legacy `GATE_API_KEY`) |
+| `X-Gate-Api-Key` | Yes | Pre-shared key matching `GATE_HARDWARE_API_KEY` |
 | `Content-Type` | Yes | `application/json` |
 
 **Request body**
@@ -349,7 +339,7 @@ Verifies a PhilSys QR payload and issues an event ticket for dashboard-originate
 
 | Header | Required | Description |
 |---|---|---|
-| `X-Internal-Api-Key` | Yes | Matches `INTERNAL_API_KEY` in `.env`, or `GATE_API_KEY` when `INTERNAL_API_KEY` is unset (migration fallback) |
+| `X-Internal-Api-Key` | Yes | Matches `INTERNAL_API_KEY` in `.env` |
 | `Authorization` | Yes | `Bearer <Supabase access JWT>` — validated with Supabase JWKS (ES256) |
 | `X-Trace-Id` | No | Correlation id (e.g. UUID); echoed on the response |
 | `Content-Type` | Yes | `application/json` |
@@ -389,17 +379,6 @@ Verifies a PhilSys QR payload and issues an event ticket for dashboard-originate
 ```
 
 **Response 401** — missing or invalid internal key and/or bearer
-
-### `POST /tickets/issue` (legacy compatibility)
-
-Temporary backward-compatible issue route while migration is in progress.
-
-| Header | Required | Description |
-|---|---|---|
-| `X-Gate-Api-Key` | Yes | Matches `GATE_API_KEY` |
-| `Content-Type` | Yes | `application/json` |
-
-Response payloads and domain error semantics are the same as `POST /dashboard/tickets/issue`.
 
 ## MOSIP Credentials
 

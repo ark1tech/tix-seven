@@ -20,19 +20,16 @@ For each module: add FastAPI commands (or extend existing services), mirror vali
 
 | Layer | Route / surface | Authentication |
 | --- | --- | --- |
-| **Next.js (dashboard)** | Server action → gate-server `POST /dashboard/tickets/issue` | `Authorization: Bearer <access token>` + **`X-Internal-Api-Key`** (see env pairing). Optional **`X-Trace-Id`**; echoed on the response. |
-| **Gate-server (hardware)** | `POST /verify` | **`X-Gate-Api-Key`** must match **`GATE_HARDWARE_API_KEY`** (or legacy `GATE_API_KEY` during rollout). |
-| **Gate-server (issue)** | `POST /dashboard/tickets/issue` | **Target:** `X-Internal-Api-Key` + `Authorization: Bearer` (JWT validated with Supabase JWKS / ES256). |
-| **Gate-server (issue legacy)** | `POST /tickets/issue` | **Legacy only:** `X-Gate-Api-Key` matching **`GATE_API_KEY`** until removed. |
+| **Next.js (dashboard)** | Server action → gate-server `POST /dashboard/tickets/issue` | `Authorization: Bearer <access token>` + **`X-Internal-Api-Key`**. Optional **`X-Trace-Id`**; echoed on the response. |
+| **Gate-server (hardware)** | `POST /verify` | **`X-Gate-Api-Key`** must match **`GATE_HARDWARE_API_KEY`**. |
+| **Gate-server (issue)** | `POST /dashboard/tickets/issue` | `X-Internal-Api-Key` matching `INTERNAL_API_KEY` + `Authorization: Bearer` (JWT validated with Supabase JWKS / ES256). |
 
-**Status codes:** Missing or invalid authentication on protected gate-server endpoints should return **401 Unauthorized** (distinct from business-rule denials and validation errors).
+**Status codes:** Missing or invalid authentication on protected gate-server endpoints returns **401 Unauthorized** (distinct from business-rule denials and validation errors).
 
-**Environment pairing:**
+**Environment pairing (current — legacy removed 2026-04-27):**
 
-- `apps/gate-server`: `INTERNAL_API_KEY`, `GATE_HARDWARE_API_KEY`, optional `SUPABASE_JWKS_URL` / JWT claim overrides, temporary `GATE_API_KEY`. Until split keys are set, **`GATE_API_KEY` alone** satisfies hardware auth (`POST /verify`) and internal header checks (`POST /dashboard/tickets/issue`) via server-side fallbacks; **`POST /tickets/issue` (legacy) still requires `GATE_API_KEY` explicitly** (not the hardware key alone).
-- `apps/web`: `GATE_SERVER_INTERNAL_API_KEY`; optional temporary **`GATE_SERVER_API_KEY`** — used only when `GATE_SERVER_INTERNAL_API_KEY` is unset; value is sent as **`X-Internal-Api-Key`** to **`POST /dashboard/tickets/issue`** (same route as the primary flow; not used for legacy `POST /tickets/issue`).
-
-**Rollout order:** (1) Deploy **gate-server** with **`INTERNAL_API_KEY`** + **`GATE_HARDWARE_API_KEY`**, JWKS/bearer validation, and keep **`GATE_API_KEY`** for legacy **`POST /tickets/issue`** and as a fallback if split env vars are missing. (2) Deploy **web** with **`GATE_SERVER_INTERNAL_API_KEY`** matching gate-server **`INTERNAL_API_KEY`**. (3) Validate end-to-end, move firmware to **`GATE_HARDWARE_API_KEY`**, then retire legacy **`GATE_API_KEY`** / web **`GATE_SERVER_API_KEY`** when checks pass.
+- `apps/gate-server`: `INTERNAL_API_KEY`, `GATE_HARDWARE_API_KEY`, optional `SUPABASE_JWKS_URL` / JWT claim overrides. Both keys are required at startup.
+- `apps/web`: `GATE_SERVER_INTERNAL_API_KEY` — required; `GATE_SERVER_API_KEY` fallback has been removed.
 
 ---
 
@@ -74,19 +71,21 @@ These writes still run through Supabase from the Next.js server using `createCli
 
 ## Rollback notes
 
-- **Gate-server:** Keep **`GATE_API_KEY`** set during migration for **`POST /tickets/issue`** (legacy) and, if needed, as the configured fallback for **`POST /verify`** and internal-key checks when split env vars are missing. **`GATE_SERVER_API_KEY` is web-only** — it is not read by gate-server.
-- **Web:** If `GATE_SERVER_INTERNAL_API_KEY` is wrong or missing while gate-server still accepts the legacy shared key as the effective internal secret, temporarily set **`GATE_SERVER_API_KEY`** to match gate-server **`GATE_API_KEY`** so **`X-Internal-Api-Key`** validates again (still calling **`POST /dashboard/tickets/issue`** with bearer). If dashboard issue must be bypassed entirely, point a controlled caller at **`POST /tickets/issue`** with **`X-Gate-Api-Key`** only (no bearer) until the primary path is fixed.
-- **Secrets:** Rotating `INTERNAL_API_KEY` requires simultaneous update on gate-server and Vercel (web). Plan a short maintenance window or blue/green env injection.
+Legacy paths have been removed as of 2026-04-27. There is no code-level rollback path for legacy `POST /tickets/issue` or `GATE_API_KEY` fallbacks; re-introducing them would require reverting the relevant commits.
+
+- **Gate-server:** `GATE_API_KEY` and the `effective_*` fallback properties are gone. `INTERNAL_API_KEY` and `GATE_HARDWARE_API_KEY` are now required at startup.
+- **Web:** `GATE_SERVER_API_KEY` fallback is removed. Only `GATE_SERVER_INTERNAL_API_KEY` is read.
+- **Secrets:** Rotating `INTERNAL_API_KEY` requires a simultaneous update on gate-server and Vercel (web). Plan a short maintenance window or blue/green env injection.
 
 ---
 
-## Readiness checklist (before removing legacy keys)
+## Readiness checklist (legacy removal — completed 2026-04-27)
 
-- [ ] All ESP8266 devices flashed to use `GATE_HARDWARE_API_KEY` (or confirmed proxy path).
-- [ ] Next.js production uses `GATE_SERVER_INTERNAL_API_KEY` and no longer depends on `GATE_SERVER_API_KEY` for issue.
-- [ ] Gate-server rejects anonymous issue attempts with **401**; JWT validation via Supabase JWKS is healthy.
-- [ ] Dashboard E2E: login → issue ticket → gate scan grant.
-- [ ] Alerts/dashboards for 401 spikes and verification error rates.
+- [x] All ESP8266 devices flashed to use `GATE_HARDWARE_API_KEY` (or confirmed proxy path).
+- [x] Next.js production uses `GATE_SERVER_INTERNAL_API_KEY` and no longer depends on `GATE_SERVER_API_KEY` for issue.
+- [x] Gate-server rejects anonymous issue attempts with **401**; JWT validation via Supabase JWKS is healthy.
+- [x] Dashboard E2E: login → issue ticket → gate scan grant.
+- [x] Alerts/dashboards for 401 spikes and verification error rates.
 - [ ] Remaining event/gate command migrations scheduled or tracked (see inventory above).
 
 ---
