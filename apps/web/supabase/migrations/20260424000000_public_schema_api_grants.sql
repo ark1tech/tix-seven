@@ -1,3 +1,5 @@
+-- Prototype: broad grants to anon/authenticated. For production, prefer RLS + minimal grants
+-- (see docs/supabase-advisors-notes.md after running Supabase advisors).
 -- PostgREST (and @supabase/ssr) connect as anon/authenticated. Without USAGE on
 -- schema public, every query fails with: permission denied for schema public (42501).
 grant usage on schema public to postgres, anon, authenticated, service_role;

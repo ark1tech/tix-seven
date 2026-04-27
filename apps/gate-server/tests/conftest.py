@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.main import app
 from app.routers.issue import get_issuance_service
 from app.routers.verify import get_verification_service
+from app.services.identity import IdentityService
 from app.services.issuance import IssuanceService
 from app.services.verification import VerificationService
 
@@ -31,11 +32,17 @@ class FakeSession:
 
 
 def _stub_service():
-    return VerificationService(db=FakeSession(), mosip=StubMOSIPAdapter())
+    return VerificationService(
+        db=FakeSession(),
+        identity=IdentityService(mosip=StubMOSIPAdapter()),
+    )
 
 
 def _stub_issuance():
-    return IssuanceService(db=FakeSession(), mosip=StubMOSIPAdapter())
+    return IssuanceService(
+        db=FakeSession(),
+        identity=IdentityService(mosip=StubMOSIPAdapter()),
+    )
 
 
 @pytest.fixture
@@ -48,4 +55,5 @@ def client() -> TestClient:
 
 @pytest.fixture
 def auth_headers() -> dict:
-    return {"X-Gate-Api-Key": settings.gate_api_key}
+    """X-Gate-Api-Key for /verify (hardware key)."""
+    return {"X-Gate-Api-Key": settings.gate_hardware_api_key}

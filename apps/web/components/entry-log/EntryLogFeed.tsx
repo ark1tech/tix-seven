@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatPhtTimeMedium, parsePhtEventTimestampToDate } from "@/lib/datetime-pht";
 import { cn } from "@/lib/utils";
 import type { Log } from "@tix-seven/types";
 
@@ -54,8 +55,8 @@ export default function EntryLogFeed({ eventId, initialLogs }: Props) {
   });
 
   const sortedLogs = [...filteredLogs].sort((a, b) => {
-    const timeA = new Date(a.timestamp).getTime();
-    const timeB = new Date(b.timestamp).getTime();
+    const timeA = parsePhtEventTimestampToDate(a.timestamp).getTime();
+    const timeB = parsePhtEventTimestampToDate(b.timestamp).getTime();
     return sort === "Newest" ? timeB - timeA : timeA - timeB;
   });
 
@@ -75,7 +76,7 @@ export default function EntryLogFeed({ eventId, initialLogs }: Props) {
           <Select modal={false} value={filter} onValueChange={(v) => {
               if (v === "All" || v === "Granted" || v === "Denied") setFilter(v);
             }}>
-            <SelectTrigger className="h-8 px-2 text-xs border-transparent hover:bg-muted/60 transition-colors bg-transparent shadow-none w-auto gap-1.5 text-muted-foreground font-medium focus-visible:ring-0 data-[open]:bg-muted/80 data-[open]:text-foreground rounded-md">
+            <SelectTrigger className="h-8 px-2 text-xs border-transparent hover:bg-muted/60 transition-colors bg-transparent shadow-none w-auto gap-1.5 text-muted-foreground font-medium focus-visible:ring-0 data-open:bg-muted/80 data-open:text-foreground rounded-md">
               <Filter className="h-3.5 w-3.5 shrink-0" />
               <SelectValue />
             </SelectTrigger>
@@ -89,7 +90,7 @@ export default function EntryLogFeed({ eventId, initialLogs }: Props) {
           <Select modal={false} value={sort} onValueChange={(v) => {
               if (v === "Newest" || v === "Oldest") setSort(v);
             }}>
-            <SelectTrigger className="h-8 px-2 text-xs border-transparent hover:bg-muted/60 transition-colors bg-transparent shadow-none w-auto gap-1.5 text-muted-foreground font-medium focus-visible:ring-0 data-[open]:bg-muted/80 data-[open]:text-foreground rounded-md">
+            <SelectTrigger className="h-8 px-2 text-xs border-transparent hover:bg-muted/60 transition-colors bg-transparent shadow-none w-auto gap-1.5 text-muted-foreground font-medium focus-visible:ring-0 data-open:bg-muted/80 data-open:text-foreground rounded-md">
               <ArrowUpDown className="h-3.5 w-3.5 shrink-0" />
               <SelectValue />
             </SelectTrigger>
@@ -114,8 +115,8 @@ export default function EntryLogFeed({ eventId, initialLogs }: Props) {
         {sortedLogs.map((log, i) => (
           <TableRow key={log.log_id} className={cn(i % 2 === 1 && "bg-muted/40")}>
             <TableCell className="py-2 px-3 text-xs text-muted-foreground">
-              <time suppressHydrationWarning>
-                {new Intl.DateTimeFormat(undefined, { timeStyle: "medium" }).format(new Date(log.timestamp))}
+              <time dateTime={log.timestamp.replace(" ", "T")}>
+                {formatPhtTimeMedium(log.timestamp)}
               </time>
             </TableCell>
             <TableCell className="py-2 px-3">

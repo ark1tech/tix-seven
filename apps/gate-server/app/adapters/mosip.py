@@ -1,12 +1,16 @@
 import os
+import logging
 from dataclasses import dataclass
-from typing import Optional, Protocol
+from typing import Callable, Optional, Protocol
 
 from dynaconf import Dynaconf
+from mosip_auth_sdk._authenticator.utils import restutil as mosip_restutil
 from mosip_auth_sdk import MOSIPAuthenticator
 from mosip_auth_sdk.models import DemographicsModel
+from requests import RequestException
 
 from app.core.config import settings
+from app.core.trace import get_trace_id
 
 # Credential files live under apps/gate-server/credentials/ (sibling to app/)
 _CREDS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "credentials")
@@ -15,6 +19,26 @@ _MOSIP_CREDENTIAL_FILES = (
     "keystore.p12",
     "keystore-signed.p12",
 )
+_auth_log = logging.getLogger("authenticator.log")
+_MOSIP_REQUEST_TIMEOUT_SECONDS = 60
+
+
+def _with_default_timeout(
+    request_func: Callable[..., object], timeout_seconds: int
+) -> Callable[..., object]:
+    def _wrapped(*args, **kwargs):
+        kwargs.setdefault("timeout", timeout_seconds)
+
+        # Inject proxy if running via userspace wireproxy
+        if os.environ.get("MOSIP_USE_SOCKS5_PROXY") == "true":
+            kwargs["proxies"] = {
+                "http": "socks5h://127.0.0.1:1080",
+                "https": "socks5h://127.0.0.1:1080",
+            }
+
+        return request_func(*args, **kwargs)
+
+    return _wrapped
 
 
 def _require_mosip_credential_files() -> None:
@@ -78,6 +102,10 @@ def _make_authenticator() -> MOSIPAuthenticator:
     }
     config = Dynaconf(settings_file=None)
     config.update(cfg_dict)
+    mosip_restutil.requests.post = _with_default_timeout(
+        mosip_restutil.requests.post,
+        timeout_seconds=_MOSIP_REQUEST_TIMEOUT_SECONDS,
+    )
     return MOSIPAuthenticator(config=config)
 
 
@@ -86,6 +114,10 @@ class VerificationResult:
     verified: bool
     uin: Optional[str]
     psut: Optional[str]  # returned as "authToken"
+
+
+class MOSIPUnavailableError(Exception):
+    """Raised when MOSIP cannot be reached or returns a transport-level error."""
 
 class MOSIPAdapter(Protocol):
     """
@@ -118,20 +150,48 @@ class RealMOSIPAdapter:
 
     def verify(self, qr_payload: str) -> VerificationResult:
         if not qr_payload or not qr_payload.strip():
+            _auth_log.info("verify skipped: trace_id=%s reason=empty_qr_payload", get_trace_id())
             return VerificationResult(verified=False, uin=None, psut=None)
 
         # splits "UIN and the demographical content of the QR payload"
         uin, demographics = self._parse_qr(qr_payload)
         if uin is None or demographics is None:
+            _auth_log.info("verify skipped: trace_id=%s reason=invalid_qr_payload", get_trace_id())
             return VerificationResult(verified=False, uin=None, psut=None)
 
         ## Calls upon the MOSIP sdk
-        response = self._authenticator.auth(
-            individual_id=uin,
-            individual_id_type="UIN",
-            demographic_data=demographics,
-            consent=True,
-        )
+        try:
+            _auth_log.info(
+                "verify start: trace_id=%s calling_mosip_auth host=%s uin_suffix=%s",
+                get_trace_id(),
+                settings.mosip_ida_domain_uri,
+                uin[-4:],
+            )
+            response = self._authenticator.auth(
+                individual_id=uin,
+                individual_id_type="UIN",
+                demographic_data=demographics,
+                consent=True,
+            )
+            _auth_log.info(
+                "verify request completed: trace_id=%s status_code=%s",
+                get_trace_id(),
+                response.status_code,
+            )
+        except RequestException as exc:
+            _auth_log.error(
+                "verify failed: trace_id=%s reason=mosip_or_network_fault error=%s",
+                get_trace_id(),
+                repr(exc),
+            )
+            raise MOSIPUnavailableError("MOSIP auth request failed") from exc
+        except Exception as exc:
+            _auth_log.exception(
+                "verify failed: trace_id=%s reason=gate_server_fault unexpected_error=%s",
+                get_trace_id(),
+                type(exc).__name__,
+            )
+            raise
 
         """
         Given a UIN and some demographic data, MOSIP returns:
@@ -144,11 +204,37 @@ class RealMOSIPAdapter:
 
         # TODO: VERIFY. From my understanding, kahit sa yes / no API call may PSUT token?
     
-        decrypted = response.json()
+        raw_body = response.text
+        if not raw_body or not raw_body.strip():
+            _auth_log.error(
+                "verify failed: trace_id=%s reason=empty_mosip_response status_code=%s",
+                get_trace_id(),
+                response.status_code,
+            )
+            raise MOSIPUnavailableError(
+                f"MOSIP returned empty body (status {response.status_code})"
+            )
+
+        try:
+            decrypted = response.json()
+        except ValueError as exc:
+            _auth_log.error(
+                "verify failed: trace_id=%s reason=mosip_invalid_json status_code=%s body_prefix=%.120s",
+                get_trace_id(),
+                response.status_code,
+                raw_body[:120],
+            )
+            raise MOSIPUnavailableError("MOSIP returned non-JSON response") from exc
+
         inner = decrypted.get("response", {})
 
         auth_status: bool = inner.get("authStatus", False)
         psut: Optional[str] = inner.get("authToken") if auth_status else None
+        _auth_log.info(
+            "verify response parsed: trace_id=%s auth_status=%s",
+            get_trace_id(),
+            auth_status,
+        )
 
         return VerificationResult(
             verified=auth_status,
@@ -181,14 +267,14 @@ class RealMOSIPAdapter:
             if data.get("dob"):
                 demo_kwargs["dob"] = data["dob"]
             if data.get("postal_code"):
-                demo_kwargs["postalCode"] = data["postal_code"]
+                demo_kwargs["postal_code"] = data["postal_code"]
 
             # Fields that require the IdentityInfo list structure: [{"language": "eng", "value": "..."}]
             list_fields = {
                 "name": "name",
-                "addressLine1": "address_line1",
-                "addressLine2": "address_line2",
-                "addressLine3": "address_line3",
+                "address_line1": "address_line1",
+                "address_line2": "address_line2",
+                "address_line3": "address_line3",
                 "location1": "location1",
                 "location3": "location3",
                 "zone": "zone",
@@ -205,6 +291,10 @@ class RealMOSIPAdapter:
             return str(uin), demographics
 
         except json.JSONDecodeError:
+            _auth_log.warning(
+                "parse_qr failed: trace_id=%s reason=json_decode_error",
+                get_trace_id(),
+            )
             return None, None
 
 

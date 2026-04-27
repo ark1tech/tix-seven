@@ -1,12 +1,15 @@
 from contextlib import asynccontextmanager
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+from app.core.trace import end_trace_context, start_trace_context
 from app.db.session import engine
 from app.routers import health, issue, verify
+from app.routers import events as events_router
+from app.routers import gates as gates_router
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +29,46 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+@app.middleware("http")
+async def attach_trace_id(request: Request, call_next):
+    token, trace_id = start_trace_context(request.headers.get("X-Trace-Id"))
+    logger.info(
+        "pipeline ingress: trace_id=%s method=%s path=%s",
+        trace_id,
+        request.method,
+        request.url.path,
+    )
+    try:
+        response = await call_next(request)
+        response.headers["X-Trace-Id"] = trace_id
+        logger.info(
+            "pipeline egress: trace_id=%s method=%s path=%s status_code=%s",
+            trace_id,
+            request.method,
+            request.url.path,
+            response.status_code,
+        )
+        return response
+    finally:
+        end_trace_context(token)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[],
     allow_methods=["POST", "GET"],
-    allow_headers=["X-Gate-Api-Key", "Content-Type"],
+    allow_headers=[
+        "X-Gate-Api-Key",
+        "X-Internal-Api-Key",
+        "Authorization",
+        "X-Trace-Id",
+        "Content-Type",
+    ],
 )
 
 app.include_router(health.router)
 app.include_router(verify.router)
 app.include_router(issue.router)
+app.include_router(events_router.router)
+app.include_router(gates_router.router)

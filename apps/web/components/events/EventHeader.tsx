@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { IssueTicketButton } from "@/components/tickets/IssueTicketButton";
+import { formatEventDateMediumPht } from "@/lib/datetime-pht";
 import { cn } from "@/lib/utils";
 import type { Event } from "@tix-seven/types";
 
@@ -19,9 +20,7 @@ export default function EventHeader({ event }: Props) {
   const isEntryLog = pathname.endsWith("/entry-log");
   const isEdit = pathname.endsWith("/edit");
 
-  const formattedDate = new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-  }).format(new Date(event.start_time));
+  const formattedDate = formatEventDateMediumPht(event.start_time);
 
   return (
     <div className="pb-5 border-b mb-8">

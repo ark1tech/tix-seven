@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check:alembic-head": "bash ../../scripts/verify-alembic-head.sh"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",

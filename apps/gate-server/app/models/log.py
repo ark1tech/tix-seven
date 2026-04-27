@@ -1,10 +1,11 @@
-from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, func, Index
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 import uuid, datetime
 
 from app.db.base import Base
+from app.db.time import pht_now_server_default
 from app.models.enums import DenialReasonEnum, ResultEnum
 
 from typing import TYPE_CHECKING, Optional
@@ -44,14 +45,13 @@ class Log(Base):
         Enum(ResultEnum, name="log_result"), nullable=False
     )
 
-    # Populated only when result = DENIED
-    # Null for all other types of results
+    # Must be null when result = GRANTED; may be set for other non-granted results.
     denial_reason: Mapped[Optional[DenialReasonEnum]] = mapped_column(
         Enum(DenialReasonEnum, name="denial_reason"), nullable=True
     )
 
     timestamp: Mapped[datetime.datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime, server_default=pht_now_server_default(), nullable=False
     )
 
     # Relationships

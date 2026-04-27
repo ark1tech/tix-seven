@@ -1,12 +1,15 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { phtEventTimestampZ } from "@/lib/datetime-pht";
 import { createClient } from "@/lib/supabase/server";
-import { getEvents, createEvent } from "@/lib/db/events";
+import { getEvents } from "@/lib/db/events";
+import { createEvent } from "@/lib/gate-server/events";
 
 const CreateEventSchema = z.object({
   name: z.string().min(1),
-  start_time: z.string().datetime(),
-  end_time: z.string().datetime(),
+  start_time: phtEventTimestampZ,
+  end_time: phtEventTimestampZ,
   venue_name: z.string().min(1),
   capacity: z.number().int().positive(),
 });
@@ -27,12 +30,25 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { data: { session } } = await supabase.auth.getSession();
+  const accessToken = session?.access_token;
+  if (!accessToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const body = await request.json();
   const parsed = CreateEventSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const event = await createEvent(parsed.data);
-  return NextResponse.json(event, { status: 201 });
+  const traceId = randomUUID();
+  const result = await createEvent(accessToken, parsed.data, traceId);
+  if (!result.ok) {
+    const status =
+      result.error === "unauthorized" ? 401
+      : result.error === "forbidden" ? 403
+      : result.error === "validation_error" ? 400
+      : 500;
+    return NextResponse.json({ error: result.error }, { status });
+  }
+  return NextResponse.json(result.event, { status: 201 });
 }

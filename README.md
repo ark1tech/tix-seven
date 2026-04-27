@@ -36,7 +36,7 @@ tix-seven/
 │       │   ├── adapters/      # MOSIP + Supabase adapters
 │       │   ├── core/          # Config + HMAC crypto
 │       │   ├── models/        # Pydantic schemas
-│       │   ├── routers/       # /health + /verify endpoints
+│       │   ├── routers/       # /health, /verify, /tickets/issue, /dashboard/tickets/issue
 │       │   ├── services/      # VerificationService
 │       │   └── main.py
 │       ├── tests/
@@ -53,7 +53,7 @@ tix-seven/
 
 ### Key design notes
 
-- **`packages/types`** is the single source of truth for domain types shared across `apps/web`. It mirrors the Pydantic schemas in `apps/gate-server/app/models/schemas.py`. Import it as `@tix-seven/types` inside the web app (mapped via `tsconfig.json` paths).
+- **`packages/types`** is the shared TypeScript contract for the organizer dashboard. Table row shapes and enums follow **Postgres** / gate-server Alembic (`public.log`, `public.denial_reason`, etc.). API-only Pydantic types (e.g. `VerifyRequest`) live in `apps/gate-server/app/models/schemas.py`. Import shared types as `@tix-seven/types` (see `apps/web/tsconfig.json` paths).
 - **No build orchestrator.** Each app is independent — run them from their own directories. The `apps/` + `packages/` layout is convention, not a toolchain requirement.
 - **`apps/web/lib/`** is web-app-only infrastructure. Nothing in `lib/` is shareable because every module is tied to Next.js server APIs (`cookies()`), Node.js builtins (`crypto`), or browser APIs (camera).
 
@@ -65,7 +65,7 @@ tix-seven/
 
 ```bash
 cd apps/web
-cp .env.local.example .env.local   # fill in Supabase credentials + HMAC_PEPPER
+cp .env.local.example .env.local   # Supabase, HMAC_PEPPER (see gate-server README), gate-server URL + keys
 npm install
 npm run dev
 ```
@@ -77,15 +77,19 @@ Create an organizer account in your Supabase dashboard under **Authentication �
 ### Database Setup
 
 1. Create a Supabase project at [supabase.com](https://supabase.com)
-2. Run the migration in the Supabase SQL editor:
+2. **Apply the `public` schema** using gate-server Alembic (source of truth):
+   ```bash
+   cd apps/gate-server
+   python -m venv .venv && source .venv/bin/activate
+   pip install -r requirements.txt
+   # Set DATABASE_URL to your Supabase Postgres connection string (e.g. pooler URL + ssl)
+   alembic upgrade head
    ```
-   apps/web/supabase/migrations/20260418000000_initial_schema.sql
-   ```
-3. Run the seed data:
-   ```
-   apps/web/supabase/seed.sql
-   ```
-4. Enable Realtime for `entry_logs`: **Supabase dashboard → Realtime → Tables → entry_logs → Enable**
+3. **Apply web-only Supabase migrations** (grants, `mock` schema, etc.): see [apps/web/supabase/README.md](apps/web/supabase/README.md) — run the remaining files in `apps/web/supabase/migrations/` in order (after step 2).
+4. Optional mock seed: `apps/web/supabase/mock_seed.sql` (debug mock mode only).
+5. Enable Realtime for **`log`**: **Supabase dashboard → Realtime → Tables → `log` → Enable**
+
+Run `scripts/verify-alembic-head.sh` to confirm Alembic head matches the repo.
 
 ### Gate Server
 
@@ -101,13 +105,18 @@ uvicorn app.main:app --reload --port 8000
 
 ## Environment Variables
 
+Hybrid ticket issue and gate verification split **hardware** credentials from **dashboard / server-to-server** credentials. See **`docs/handoffs/2026-04-27-nextjs-db-commands-fastapi-migration.md`** for rollout, rollback, and the inventory of **event/gate write paths** still using Next.js `lib/db` (to be migrated to FastAPI).
+
 ### Web App — `apps/web/.env.local`
 
 | Variable | Description |
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
-| `HMAC_PEPPER` | Shared secret for UIN hashing (`openssl rand -hex 32`) |
+| `HMAC_PEPPER` | Shared secret for UIN hashing (`openssl rand -hex 32`); must match gate-server |
+| `GATE_SERVER_URL` | Base URL of the FastAPI gate-server (no trailing slash required) |
+| `GATE_SERVER_INTERNAL_API_KEY` | Matches gate-server `INTERNAL_API_KEY` (or legacy `GATE_API_KEY` when gate-server has no split internal key); sent as `X-Internal-Api-Key` on `POST /dashboard/tickets/issue` |
+| `GATE_SERVER_API_KEY` | **Temporary:** used only when `GATE_SERVER_INTERNAL_API_KEY` is unset; same value as gate-server `GATE_API_KEY`; still sent as `X-Internal-Api-Key` to the **dashboard** issue route (not `X-Gate-Api-Key`) |
 
 ### Gate Server — `apps/gate-server/.env`
 
@@ -115,8 +124,28 @@ uvicorn app.main:app --reload --port 8000
 |---|---|
 | `SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (full DB access) |
+| `SUPABASE_JWKS_URL` | Optional JWKS override for bearer verification; defaults to `<SUPABASE_URL>/auth/v1/.well-known/jwks.json` |
+| `SUPABASE_JWT_EXPECTED_ISS` / `SUPABASE_JWT_EXPECTED_AUD` | Optional JWT claim checks; defaults: iss = `<SUPABASE_URL>/auth/v1`, aud = `authenticated` |
 | `HMAC_PEPPER` | Must match the web app value exactly |
-| `GATE_API_KEY` | Shared secret sent by ESP8266 in `X-Gate-Api-Key` header |
+| `INTERNAL_API_KEY` | Trusted backend key for `X-Internal-Api-Key` on `POST /dashboard/tickets/issue`; if unset, `GATE_API_KEY` is used as the effective internal secret during migration |
+| `GATE_HARDWARE_API_KEY` | ESP8266 `X-Gate-Api-Key` for `POST /verify`; if unset, `GATE_API_KEY` is accepted for `/verify` during migration |
+| `GATE_API_KEY` | **Temporary:** legacy `POST /tickets/issue` (`X-Gate-Api-Key`); also the fallback when split keys are omitted |
+
+### API surfaces (summary)
+
+| Route | Caller | Auth |
+|---|---|---|
+| `POST /dashboard/tickets/issue` | Organizer dashboard (Next.js server action) | `Authorization: Bearer` + `X-Internal-Api-Key`; optional `X-Trace-Id` (echoed on response) |
+| `POST /verify` (gate-server) | ESP8266 | `X-Gate-Api-Key` → `GATE_HARDWARE_API_KEY` (or legacy `GATE_API_KEY` when the hardware key is not configured) |
+| `POST /tickets/issue` (gate-server, legacy) | Temporary compatibility callers | `X-Gate-Api-Key` → `GATE_API_KEY` |
+
+Missing or invalid auth on gate-server should return **401** under the target contract.
+
+### Safe rollout order
+
+1. Configure and deploy **gate-server** with `INTERNAL_API_KEY`, `GATE_HARDWARE_API_KEY`, and JWKS-based bearer verification (derived from `SUPABASE_URL` or `SUPABASE_JWKS_URL`), and keep **`GATE_API_KEY`** for legacy clients.
+2. Configure and deploy **web** with **`GATE_SERVER_INTERNAL_API_KEY`** (and fallback `GATE_SERVER_API_KEY` if needed).
+3. Validate hardware scans and dashboard issue end-to-end, then retire the legacy single key.
 
 ---
 

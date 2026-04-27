@@ -1,7 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { updateGate, deleteGate } from "@/lib/db/gates";
+import { updateGate, deleteGate } from "@/lib/gate-server/gates";
 
 const UpdateGateSchema = z.object({
   location: z.string().min(1).optional(),
@@ -16,6 +17,10 @@ export async function PATCH(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { data: { session } } = await supabase.auth.getSession();
+  const accessToken = session?.access_token;
+  if (!accessToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { gateId } = await params;
   const body = await request.json();
   const parsed = UpdateGateSchema.safeParse(body);
@@ -23,8 +28,18 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const gate = await updateGate(gateId, parsed.data);
-  return NextResponse.json(gate);
+  const traceId = randomUUID();
+  const result = await updateGate(accessToken, gateId, parsed.data, traceId);
+  if (!result.ok) {
+    const status =
+      result.error === "unauthorized" ? 401
+      : result.error === "forbidden" ? 403
+      : result.error === "gate_not_found" ? 404
+      : result.error === "validation_error" ? 400
+      : 500;
+    return NextResponse.json({ error: result.error }, { status });
+  }
+  return NextResponse.json(result.gate);
 }
 
 export async function DELETE(
@@ -35,7 +50,21 @@ export async function DELETE(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { data: { session } } = await supabase.auth.getSession();
+  const accessToken = session?.access_token;
+  if (!accessToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { gateId } = await params;
-  await deleteGate(gateId);
+  const traceId = randomUUID();
+  const result = await deleteGate(accessToken, gateId, traceId);
+  if (!result.ok) {
+    const status =
+      result.error === "unauthorized" ? 401
+      : result.error === "forbidden" ? 403
+      : result.error === "gate_not_found" ? 404
+      : result.error === "gate_in_use" ? 409
+      : 500;
+    return NextResponse.json({ error: result.error }, { status });
+  }
   return new NextResponse(null, { status: 204 });
 }
