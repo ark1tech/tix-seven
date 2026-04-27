@@ -196,7 +196,28 @@ class RealMOSIPAdapter:
 
         # TODO: VERIFY. From my understanding, kahit sa yes / no API call may PSUT token?
     
-        decrypted = response.json()
+        raw_body = response.text
+        if not raw_body or not raw_body.strip():
+            _auth_log.error(
+                "verify failed: trace_id=%s reason=empty_mosip_response status_code=%s",
+                get_trace_id(),
+                response.status_code,
+            )
+            raise MOSIPUnavailableError(
+                f"MOSIP returned empty body (status {response.status_code})"
+            )
+
+        try:
+            decrypted = response.json()
+        except ValueError as exc:
+            _auth_log.error(
+                "verify failed: trace_id=%s reason=mosip_invalid_json status_code=%s body_prefix=%.120s",
+                get_trace_id(),
+                response.status_code,
+                raw_body[:120],
+            )
+            raise MOSIPUnavailableError("MOSIP returned non-JSON response") from exc
+
         inner = decrypted.get("response", {})
 
         auth_status: bool = inner.get("authStatus", False)
