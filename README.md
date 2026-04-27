@@ -53,7 +53,7 @@ tix-seven/
 
 ### Key design notes
 
-- **`packages/types`** is the single source of truth for domain types shared across `apps/web`. It mirrors the Pydantic schemas in `apps/gate-server/app/models/schemas.py`. Import it as `@tix-seven/types` inside the web app (mapped via `tsconfig.json` paths).
+- **`packages/types`** is the shared TypeScript contract for the organizer dashboard. Table row shapes and enums follow **Postgres** / gate-server Alembic (`public.log`, `public.denial_reason`, etc.). API-only Pydantic types (e.g. `VerifyRequest`) live in `apps/gate-server/app/models/schemas.py`. Import shared types as `@tix-seven/types` (see `apps/web/tsconfig.json` paths).
 - **No build orchestrator.** Each app is independent — run them from their own directories. The `apps/` + `packages/` layout is convention, not a toolchain requirement.
 - **`apps/web/lib/`** is web-app-only infrastructure. Nothing in `lib/` is shareable because every module is tied to Next.js server APIs (`cookies()`), Node.js builtins (`crypto`), or browser APIs (camera).
 
@@ -77,15 +77,19 @@ Create an organizer account in your Supabase dashboard under **Authentication �
 ### Database Setup
 
 1. Create a Supabase project at [supabase.com](https://supabase.com)
-2. Run the migration in the Supabase SQL editor:
+2. **Apply the `public` schema** using gate-server Alembic (source of truth):
+   ```bash
+   cd apps/gate-server
+   python -m venv .venv && source .venv/bin/activate
+   pip install -r requirements.txt
+   # Set DATABASE_URL to your Supabase Postgres connection string (e.g. pooler URL + ssl)
+   alembic upgrade head
    ```
-   apps/web/supabase/migrations/20260418000000_initial_schema.sql
-   ```
-3. Run the seed data:
-   ```
-   apps/web/supabase/seed.sql
-   ```
-4. Enable Realtime for `entry_logs`: **Supabase dashboard → Realtime → Tables → entry_logs → Enable**
+3. **Apply web-only Supabase migrations** (grants, `mock` schema, etc.): see [apps/web/supabase/README.md](apps/web/supabase/README.md) — run the remaining files in `apps/web/supabase/migrations/` in order (after step 2).
+4. Optional mock seed: `apps/web/supabase/mock_seed.sql` (debug mock mode only).
+5. Enable Realtime for **`log`**: **Supabase dashboard → Realtime → Tables → `log` → Enable**
+
+See [docs/schema-drift-inventory.md](docs/schema-drift-inventory.md) and `scripts/verify-alembic-head.sh` to confirm Alembic head matches the repo.
 
 ### Gate Server
 
