@@ -60,7 +60,7 @@ export default function GateTable({ gates, events }: Props) {
   return (
     <Table>
       <TableHeader>
-        <TableRow>
+        <TableRow className="hover:bg-transparent border-b">
           <TableHead className="py-2 px-3 text-xs">Location</TableHead>
           <TableHead className="py-2 px-3 text-xs">Status</TableHead>
           <TableHead className="py-2 px-3 text-xs">Assigned Event</TableHead>
@@ -69,7 +69,7 @@ export default function GateTable({ gates, events }: Props) {
       </TableHeader>
       <TableBody>
         {gates.map((gate, i) => (
-          <TableRow key={gate.gate_id} className={cn(i % 2 === 1 && "bg-muted/40")}>
+          <TableRow key={gate.gate_id} className="group transition-colors">
             <TableCell className="py-2 px-3 text-sm">{gate.location}</TableCell>
             <TableCell className="py-2 px-3">
               <span className={cn(
@@ -82,7 +82,7 @@ export default function GateTable({ gates, events }: Props) {
                   "h-1.5 w-1.5 rounded-full",
                   gate.status === "ONLINE" ? "bg-emerald-500" : "bg-zinc-400"
                 )} />
-                {gate.status}
+                {gate.status === "ONLINE" ? "Online" : "Offline"}
               </span>
             </TableCell>
             <TableCell className="py-2 px-3">
@@ -93,8 +93,10 @@ export default function GateTable({ gates, events }: Props) {
                 }
                 disabled={loading === gate.gate_id}
               >
-                <SelectTrigger className="w-48">
-                  <SelectValue />
+                <SelectTrigger className="w-fit min-w-32">
+                  <SelectValue>
+                    {events.find(e => e.event_id === gate.event_id)?.name ?? "Unassigned"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="unassigned">Unassigned</SelectItem>
@@ -110,6 +112,7 @@ export default function GateTable({ gates, events }: Props) {
               <Button
                 variant="ghost"
                 size="sm"
+                className="hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-colors cursor-pointer"
                 onClick={() => handleDelete(gate.gate_id)}
                 disabled={loading === gate.gate_id}
               >
