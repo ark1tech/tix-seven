@@ -23,18 +23,24 @@ class EventService:
     # ------------------------------------------------------------------
 
     def _upsert_venue(self, name: str) -> uuid.UUID:
-        """Insert venue by name if it doesn't exist, return its venue_id."""
+        """
+        Insert venue by name if it doesn't exist and return its venue_id.
+        """
+
         stmt = (
             pg_insert(Venue)
             .values(name=name)
             .on_conflict_do_update(index_elements=["name"], set_={"name": name})
             .returning(Venue.venue_id)
         )
+
         venue_id: uuid.UUID = self.db.execute(stmt).scalar_one()
+
         return venue_id
 
-    def _to_response(self, event: Event) -> EventResponse:
+    def _map_event_to_response(self, event: Event) -> EventResponse:
         venue_name = event.venue.name if event.venue else ""
+
         return EventResponse(
             event_id=event.event_id,
             venue_id=event.venue_id,
@@ -67,6 +73,7 @@ class EventService:
             end_time=body.end_time,
             capacity=body.capacity,
         )
+
         self.db.add(event)
         self.db.commit()
         self.db.refresh(event)
@@ -76,7 +83,8 @@ class EventService:
             trace_id,
             event.event_id,
         )
-        return self._to_response(event)
+
+        return self._map_event_to_response(event)
 
     def update(self, event_id: uuid.UUID, body: EventUpdateRequest) -> EventResponse:
         trace_id = get_trace_id()
@@ -86,7 +94,10 @@ class EventService:
             event_id,
         )
 
-        event = self.db.scalar(select(Event).where(Event.event_id == event_id))
+        stmt = select(Event).where(Event.event_id == event_id)
+
+        event = self.db.scalar(stmt)
+
         if event is None:
             logger.warning(
                 "event update failed: reason=event_not_found status_code=404 trace_id=%s event_id=%s",
@@ -115,4 +126,5 @@ class EventService:
             trace_id,
             event_id,
         )
-        return self._to_response(event)
+
+        return self._map_event_to_response(event)
