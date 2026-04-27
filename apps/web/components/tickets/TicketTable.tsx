@@ -83,20 +83,25 @@ export default function TicketTable({ eventId, initialTickets }: { eventId: stri
       setTickets((prev) => {
         const index = prev.findIndex((t) => t.ticket_id === updatedTicket.ticket_id);
         if (index !== -1) {
-          // UPDATE path: merge but never clobber an existing link_hash with null
+          // UPDATE path: merge fields but never clobber an existing value with
+          // null/undefined. This handles both the enriched broadcast payload
+          // (full Ticket) and the postgres_changes fallback (partial — no
+          // link_hash column on the ticket table).
           const existing = prev[index];
           const merged: Ticket = {
             ...existing,
             ...updatedTicket,
             link_hash: updatedTicket.link_hash ?? existing.link_hash,
           };
-          const newTickets = [...prev];
-          newTickets[index] = merged;
-          return newTickets;
+          const next = [...prev];
+          next[index] = merged;
+          return next;
         } else {
           // INSERT path: only add if link_hash is present — the broadcast can
           // fire before the event_ticket_link join is visible, yielding null.
           if (!updatedTicket.link_hash) return prev;
+          // Prevent duplicates if multiple realtime paths fire
+          if (prev.some((t) => t.ticket_id === updatedTicket.ticket_id)) return prev;
           return [updatedTicket as Ticket, ...prev];
         }
       });
