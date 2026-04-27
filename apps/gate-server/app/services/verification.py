@@ -1,10 +1,9 @@
 import uuid
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.adapters.mosip import MOSIPUnavailableError
-from app.db.time import pht_now
 from app.models.enums import (
     AssignmentStatusEnum,
     DenialReasonEnum,
@@ -218,7 +217,7 @@ class VerificationService:
                 result=ctx.result,
                 denial_reason=ctx.denial_reason,
                 error_code=ctx.error_code,
-                timestamp=pht_now(),
+                timestamp=func.now(),
             )
         )
 
@@ -240,7 +239,7 @@ class VerificationService:
                 ticket_id=ctx.ticket_id,  # Null for pre-ticket failures
                 result=ctx.result,
                 denial_reason=ctx.denial_reason,
-                timestamp=pht_now(),
+                timestamp=func.now(),
             )
         )
 
@@ -317,7 +316,7 @@ class VerificationService:
                 Ticket.ticket_id == ticket_id,
                 Ticket.status == TicketStatusEnum.UNUSED,
             )
-            .values(status=TicketStatusEnum.USED, used_at=pht_now())
+            .values(status=TicketStatusEnum.USED, used_at=func.now())
         )
         result = self.db.execute(stmt)
 

@@ -4,12 +4,11 @@ import datetime
 import uuid
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, String
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-from app.db.time import pht_now_server_default
 from app.models.enums import DenialReasonEnum, ResultEnum
 
 
@@ -27,7 +26,7 @@ class ScanAttemptLog(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     timestamp: Mapped[datetime.datetime] = mapped_column(
-        DateTime, server_default=pht_now_server_default(), nullable=False
+        DateTime, server_default=func.now(), nullable=False
     )
 
     gate_id_raw: Mapped[str] = mapped_column(String(), nullable=False)

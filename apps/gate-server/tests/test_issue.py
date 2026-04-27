@@ -41,7 +41,8 @@ def test_ticket_created_at_defaults_to_philippine_wall_clock() -> None:
 
 def test_operational_log_defaults_to_philippine_wall_clock() -> None:
     assert str(Log.__table__.c.timestamp.server_default.arg) == PHT_NOW_SQL
-    assert str(ScanAttemptLog.__table__.c.timestamp.server_default.arg) == PHT_NOW_SQL
+    # `scan_attempt_log` uses database `now()`; operational `log` uses Philippine wall clock.
+    assert str(ScanAttemptLog.__table__.c.timestamp.server_default.arg) == "now()"
 
 
 def test_issue_empty_qr_400(
