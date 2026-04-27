@@ -20,7 +20,16 @@ def test_health(client: TestClient):
 
 def test_verify_requires_api_key(client: TestClient):
     res = client.post("/verify", json={"qr_payload": "test", "gate_id": "gate-1"})
-    assert res.status_code == 403
+    assert res.status_code == 401
+
+
+def test_verify_wrong_api_key_401(client: TestClient, auth_headers: dict):
+    res = client.post(
+        "/verify",
+        json={"qr_payload": "test", "gate_id": "gate-1"},
+        headers={"X-Gate-Api-Key": auth_headers["X-Gate-Api-Key"] + "-wrong"},
+    )
+    assert res.status_code == 401
 
 
 def test_verify_invalid_qr_returns_deny(client: TestClient, auth_headers: dict):
