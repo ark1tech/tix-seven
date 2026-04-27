@@ -17,7 +17,7 @@ if [ -n "$WG_CONFIG_B64" ]; then
     echo "BindAddress = 127.0.0.1:1080" >> /etc/wireguard/wireproxy.conf
     
     echo "Starting Wireproxy (Userspace WireGuard SOCKS5 Tunnel)..."
-    wireproxy -c /etc/wireguard/wireproxy.conf -d &
+    wireproxy -c /etc/wireguard/wireproxy.conf -d > /tmp/wireproxy.log 2>&1 &
     
     # Tell the application to use the SOCKS5 proxy for MOSIP requests
     export MOSIP_USE_SOCKS5_PROXY=true
@@ -32,6 +32,9 @@ if [ -n "$WG_CONFIG_B64" ]; then
         echo "✅ SUCCESS: VPN connection established and MOSIP is reachable!"
     else
         echo "❌ WARNING: Could not reach MOSIP via the VPN proxy. Please check your WG_CONFIG_B64 or network."
+        echo "--- Wireproxy Logs ---"
+        cat /tmp/wireproxy.log
+        echo "----------------------"
     fi
 else
     echo "Warning: WG_CONFIG_B64 is not set. Skipping WireGuard setup."
