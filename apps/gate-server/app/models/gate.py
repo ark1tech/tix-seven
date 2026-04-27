@@ -23,7 +23,7 @@ class Gate(Base):
     )
 
     venue_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("venue.venue_id"), nullable=False
+        ForeignKey("venue.venue_id"), nullable=False
     )
 
     location: Mapped[str] = mapped_column(String, nullable=False)
@@ -37,7 +37,10 @@ class Gate(Base):
     # Relationships
     venue: Mapped["Venue"] = relationship("Venue", back_populates="gates")
     assignments: Mapped[List["GateAssignment"]] = relationship(
-        "GateAssignment", back_populates="gate"
+        "GateAssignment",
+        back_populates="gate",
+        cascade="all, delete-orphan",
+        passive_deletes=True
     )
     logs: Mapped[List["Log"]] = relationship("Log", back_populates="gate")
 

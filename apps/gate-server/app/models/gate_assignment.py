@@ -23,11 +23,13 @@ class GateAssignment(Base):
     )
 
     gate_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("gate.gate_id"), nullable=False
+        ForeignKey("gate.gate_id", ondelete="CASCADE"),
+        nullable=False
     )
 
     event_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("event.event_id"), nullable=False
+        ForeignKey("event.event_id", ondelete="CASCADE"),
+        nullable=False
     )
 
     status: Mapped[AssignmentStatusEnum] = mapped_column(
@@ -39,7 +41,7 @@ class GateAssignment(Base):
     assigned_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
 
     unassigned_at: Mapped[Optional[datetime.datetime]] = mapped_column(
-        DateTime, nullable=True, default=None
+        DateTime, nullable=True
     )
 
     # Relationships
@@ -51,6 +53,13 @@ class GateAssignment(Base):
         CheckConstraint(
             "(status = 'INACTIVE'::assignment_status) = (unassigned_at IS NOT NULL)",
             name="check_unassigned_at_consistency",
+        ),
+
+        Index(
+            "uq_gate_assignment_active_gate",
+            "gate_id",
+            unique=True,
+            postgresql_where="status = 'ACTIVE'",
         ),
         Index("ix_gate_assignment_gate_id", "gate_id"),
         Index("ix_gate_assignment_event_id", "event_id"),

@@ -46,12 +46,15 @@ class Event(Base):
 
     start_time: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
     end_time: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
-    capacity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    capacity: Mapped[int] = mapped_column(Integer, nullable=False)
 
     # Relationships
     venue: Mapped["Venue"] = relationship("Venue", back_populates="events")
     assignments: Mapped[List["GateAssignment"]] = relationship(
-        "GateAssignment", back_populates="event"
+        "GateAssignment",
+        back_populates="event",
+        cascade="all, delete-orphan",
+        passive_deletes=True
     )
     ticket_links: Mapped[List["EventTicketLink"]] = relationship(
         "EventTicketLink", back_populates="event"
@@ -61,7 +64,10 @@ class Event(Base):
 
     __table_args__ = (
         CheckConstraint("end_time > start_time", name="check_if_event_time_valid"),
+
         Index("ix_event_venue_id", "venue_id"),
+
+        # Note: Ensuring status does not go backwards e.g., CONCLUDED to ACTIVE is not a database-level concern
         Index("ix_event_status", "status"),
         Index("ix_event_time_range", "start_time", "end_time"),
     )

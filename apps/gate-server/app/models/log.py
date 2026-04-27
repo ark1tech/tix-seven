@@ -64,9 +64,14 @@ class Log(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "(result = 'GRANTED') = (denial_reason IS NULL)",
-            name="check_denial_reason_consistency",
+            "(result NOT IN ('TIMEOUT', 'ERROR')) OR (ticket_id IS NULL)",
+            name="check_no_ticket_on_system_failure",
         ),
+        CheckConstraint(
+            "(result = 'GRANTED') = (denial_reason IS NULL)",
+            name="check_scan_attempt_denial_reason_consistency",
+        ),
+
         Index("ix_log_event_id", "event_id"),
         Index("ix_log_gate_id", "gate_id"),
         Index("ix_log_assignment_id", "assignment_id"),

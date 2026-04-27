@@ -14,14 +14,14 @@ class TicketStatusEnum(str, enum.Enum):
 class ResultEnum(str, enum.Enum):
     GRANTED = "GRANTED"
     DENIED = "DENIED"
-    TIMEOUT = "TIMEOUT"
+    TIMEOUT = "TIMEOUT"  # ESP8266 did not receive a response within the deadline
     ERROR = "ERROR"
 
 
 class EventStatusEnum(str, enum.Enum):
-    SCHEDULED = "SCHEDULED"
-    ACTIVE = "ACTIVE"
-    CONCLUDED = "CONCLUDED"
+    SCHEDULED = "SCHEDULED"  # Event created but not yet started
+    ACTIVE = "ACTIVE"        # Event underway
+    CONCLUDED = "CONCLUDED"  # Event finished
 
 
 class AssignmentStatusEnum(str, enum.Enum):
@@ -30,22 +30,33 @@ class AssignmentStatusEnum(str, enum.Enum):
 
 
 class DenialReasonEnum(str, enum.Enum):
-    # Phase 2, Step 1: Gate (assignment) not valid
+    # Phase 2, Step 1: Gate validation
+
+    # The gate_id is invalid, malformed, or doesn't exist in the system
     INVALID_GATE_ID = "INVALID_GATE_ID"
+
+    # The gate exists but is marked OFFLINE and cannot accept any scans
+    GATE_OFFLINE = "GATE_OFFLINE"
+
+    # The gate has no ACTIVE assignment and event context cannot be resolved
     INVALID_GATE_ASSIGNMENT = "INVALID_GATE_ASSIGNMENT"
 
-    # Phase 2, Step 3: MOSIP verification failure
+    # The gate is assigned but the event is not in ACTIVE state
+    EVENT_NOT_ACTIVE = "EVENT_NOT_ACTIVE"
+
+    # Phase 2, Step 3: MOSIP verification failed due to invalid, inactive, or mismatched identity
     IDENTITY_NOT_VERIFIED = "IDENTITY_NOT_VERIFIED"
     
-    # Phase 2, Step 5: EventTicketLink query returns no record
+    # Phase 2, Step 5: No EventTicketLink exists for the computed link_hash
     LINK_NOT_FOUND = "LINK_NOT_FOUND"
-    
-    WRONG_EVENT = "WRONG_EVENT"
 
-    # Phase 2, Step 6a: Ticket query returns no record for the event
+    # Link resolves to a different event than the current gate assignment
+    WRONG_EVENT = "WRONG_EVENT" # Paul: Remove maybe
+
+    # Phase 2, Step 6a: Ticket record is missing despite an existing valid link
     TICKET_NOT_FOUND = "TICKET_NOT_FOUND"
     
-    # Phase 2, Step 6b: Ticket exists but its status is not "unused"
+    # Phase 2, Step 6b: Ticket has already been redeemed and is no longer valid
     TICKET_ALREADY_USED = "TICKET_ALREADY_USED"
     
     # System or network failures

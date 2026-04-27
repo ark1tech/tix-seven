@@ -44,7 +44,7 @@ class Ticket(Base):
     )
 
     used_at: Mapped[Optional[datetime.datetime]] = mapped_column(
-        DateTime, nullable=True, default=None
+        DateTime, nullable=True
     )
 
     # Relationships
@@ -59,6 +59,7 @@ class Ticket(Base):
             "(status = 'USED'::ticket_status) = (used_at IS NOT NULL)",
             name="check_used_at_consistency",
         ),
+
         Index("ix_ticket_link_id", "link_id"),
         Index("ix_ticket_event_id", "event_id"),
         Index("ix_ticket_status", "status"),
