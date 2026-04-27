@@ -108,3 +108,70 @@ class IssueContext(BaseModel):
     link_id: Optional[uuid.UUID] = None
     ticket_id: Optional[uuid.UUID] = None
     created_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------------
+# Event schemas
+# ---------------------------------------------------------------------------
+
+class EventCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    start_time: datetime
+    end_time: datetime
+    venue_name: str
+    capacity: int
+
+
+class EventUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: Optional[str] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    venue_name: Optional[str] = None
+    capacity: Optional[int] = None
+
+
+class EventResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_id: uuid.UUID
+    venue_id: uuid.UUID
+    venue_name: str
+    name: str
+    start_time: datetime
+    end_time: datetime
+    capacity: int
+
+
+# ---------------------------------------------------------------------------
+# Gate schemas
+# ---------------------------------------------------------------------------
+
+_UNSET = object()
+
+
+class GateCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    location: str
+    event_id: Optional[uuid.UUID] = None
+
+
+class GateUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    location: Optional[str] = None
+    event_id: Optional[uuid.UUID] = None
+
+
+class GateResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    gate_id: uuid.UUID
+    venue_id: uuid.UUID
+    location: str
+    status: str
+    event_id: Optional[uuid.UUID] = None
