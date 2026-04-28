@@ -42,7 +42,11 @@ export default function EntryLogFeed({ eventId, initialLogs }: Props) {
   useEffect(() => {
     const unsub = subscribeToEntryLogs(
       eventId,
-      (newLog) => setLogs((prev) => [newLog, ...prev])
+      (newLog) => setLogs((prev) => {
+        // Prevent duplicates from multiple realtime paths (broadcast + postgres_changes)
+        if (prev.some(log => log.log_id === newLog.log_id)) return prev;
+        return [newLog, ...prev];
+      })
     );
     return unsub;
   }, [eventId]);

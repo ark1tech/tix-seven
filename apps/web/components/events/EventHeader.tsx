@@ -5,15 +5,18 @@ import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { IssueTicketButton } from "@/components/tickets/IssueTicketButton";
+import { MockScanButton } from "@/components/tickets/MockScanButton";
 import { formatEventDateMediumPht } from "@/lib/datetime-pht";
 import { cn } from "@/lib/utils";
 import type { Event } from "@tix-seven/types";
+import type { Gate } from "@/app/(dashboard)/events/[eventId]/mock-scan-action";
 
 interface Props {
   event: Event;
+  gates: Gate[];
 }
 
-export default function EventHeader({ event }: Props) {
+export default function EventHeader({ event, gates }: Props) {
   const pathname = usePathname();
   const rootPath = `/events/${event.event_id}`;
   const isRoot = pathname === rootPath;
@@ -80,7 +83,11 @@ export default function EventHeader({ event }: Props) {
                 Live Entry Log
               </Link>
               <IssueTicketButton eventId={event.event_id} />
+              <MockScanButton eventId={event.event_id} initialGates={gates} />
             </>
+          )}
+          {isEntryLog && (
+            <MockScanButton eventId={event.event_id} initialGates={gates} />
           )}
         </div>
       </div>

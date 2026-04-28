@@ -10,7 +10,11 @@ def db_session():
     try:
         yield db
     finally:
-        db.close()
+        try:
+            db.close()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Failed to close database session cleanly: {e}")
 
 
 def get_db():

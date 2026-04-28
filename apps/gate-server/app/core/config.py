@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     mosip_ida_domain_uri: str = "https://api-internal.pdec.mosip.net"
     mosip_ida_url: str = "https://api-internal.pdec.mosip.net/idauthentication/v1"
 
+    use_stub_mosip: bool = False
+
     @property
     def supabase_auth_issuer(self) -> str:
         return f"{self.supabase_url.rstrip('/')}/auth/v1"

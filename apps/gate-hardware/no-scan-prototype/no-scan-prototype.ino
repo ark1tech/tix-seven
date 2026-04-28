@@ -2,27 +2,33 @@
 #include <ESP8266HTTPClient.h>
 #include <WiFiClient.h>
 #include <ArduinoJson.h>
+#include <Servo.h>
 
 // --- Configuration ---
-const char* ssid = "TP-Link_BFEA";
-const char* password = "Twd090702_";
+const char* ssid = "s3wifi";
+const char* password = "Com9L3x!";
+
+// const int GREEN_LED_PIN = 5; // D1
+// const int RED_LED_PIN = 4;   // D2
+const int SERVO_PIN = 14; // D5
+Servo gateServo;
 
 // Server Details
-const char* serverUrl = "http://192.168.0.107:8000/verify"; // Server's IP
-const char* apiKey = "64ca232bb34d5786219670dcb032dc8def1096de71b7c12c85fba03a02a7377e";  // Shared GATE_API_KEY
+const char* serverUrl = "http://192.168.60.68:8000/verify"; // Server's IP
+const char* apiKey = "5cfa724009e33bc55822c9552e9231514cb3dbd3c64312925508422df75f1d2e";  // Shared GATE_HARDWARE_API_KEY
 const String gateId = "1a1137d5-e36a-400e-96c2-2d4e6019268e";
-
-// --- Hardcoded Test Payload ---
-// The simulated QR code string to send to the server
-const String hardcodedPayload = "{\"uin\": \"7903740631\", \"name\": \"Haruka Kudou\", \"dob\": \"1989/03/16\", \"location1\": \"Quezon City\", \"location3\": \"Metropolitan Manila Second District\", \"zone\": \"U.P. Campus\", \"postal_code\": \"11101\"}";
-
-// Variables for Timer Loop
-unsigned long lastTriggerTime = 0;
-const unsigned long triggerInterval = 10000; // Trigger every 10 seconds
 
 void setup() {
   Serial.begin(115200); // For USB debugging
   delay(1000);
+
+  // Configure Red LED pin (using INPUT for OFF, INPUT_PULLUP for ON hack)
+  // pinMode(RED_LED_PIN, INPUT);
+
+  // Configure Servo
+  delay(500);
+  gateServo.attach(SERVO_PIN);
+  gateServo.write(0);
 
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
@@ -32,18 +38,27 @@ void setup() {
     Serial.print(".");
   }
   Serial.println("\nConnected to WiFi!");
-  Serial.println("System Ready. Testing with hardcoded payload every 10 seconds...");
+  Serial.println("System Ready. Please paste a JSON payload into the Serial Monitor and press Enter.");
 }
 
 void loop() {
-  // Check if enough time has passed since the last trigger
-  if (millis() - lastTriggerTime >= triggerInterval) {
-    Serial.println("\n--- Auto-Triggering Test ---");
-    Serial.println("Sending Payload: " + hardcodedPayload);
+  // Check if data is available on the Serial port
+  if (Serial.available() > 0) {
+    // Read the incoming string until a newline character is received
+    String incomingPayload = Serial.readStringUntil('\n');
 
-    verifyTicket(hardcodedPayload);
+    // Clean up any stray carriage returns (\r) or whitespace
+    incomingPayload.trim();
 
-    lastTriggerTime = millis(); // Reset timer
+    if (incomingPayload.length() > 0) {
+      Serial.println("\n--- Manual Triggering Test ---");
+      Serial.println("Sending Payload: " + incomingPayload);
+
+      // Pass the manually inputted JSON to the verification function
+      verifyTicket(incomingPayload);
+
+      Serial.println("\nReady for next payload. Paste JSON and press Enter:");
+    }
   }
 }
 
@@ -82,9 +97,19 @@ void verifyTicket(String qrPayload) {
 
         if (result == "grant") {
           Serial.println("[SUCCESS] ACCESS GRANTED!");
+          
+          // Open gate (spin to 90 degrees), wait 5 seconds, then close
+          gateServo.write(90);
+          delay(5000);
+          gateServo.write(0);
         } else if (result == "deny") {
           String reason = responseDoc["reason"].as<String>();
           Serial.println("[DENIED] ACCESS DENIED! Reason: " + reason);
+
+          // Light up Red LED for 3 seconds using INPUT_PULLUP hack
+          // pinMode(RED_LED_PIN, INPUT_PULLUP);
+          // delay(3000);
+          // pinMode(RED_LED_PIN, INPUT);
         } else {
           Serial.println("[WARNING] Unknown result status received.");
         }

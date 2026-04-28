@@ -13,3 +13,9 @@ export function resolveInternalApiKey(): string {
     "Missing required environment variable: GATE_SERVER_INTERNAL_API_KEY",
   );
 }
+
+export function resolveHardwareApiKey(): string {
+  const key = process.env.GATE_HARDWARE_API_KEY?.trim();
+  if (key) return key;
+  throw new Error("Missing required environment variable: GATE_HARDWARE_API_KEY");
+}

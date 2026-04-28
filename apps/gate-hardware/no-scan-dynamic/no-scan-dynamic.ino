@@ -9,7 +9,7 @@ const char* password = "Com9L3x!";
 
 // Server Details
 const char* serverUrl = "http://192.168.60.68:8000/verify"; // Server's IP
-const char* apiKey = "64ca232bb34d5786219670dcb032dc8def1096de71b7c12c85fba03a02a7377e";  // Shared GATE_API_KEY
+const char* apiKey = "5cfa724009e33bc55822c9552e9231514cb3dbd3c64312925508422df75f1d2e";  // Shared GATE_HARDWARE_API_KEY
 const String gateId = "1a1137d5-e36a-400e-96c2-2d4e6019268e";
 
 void setup() {
@@ -32,7 +32,7 @@ void loop() {
   if (Serial.available() > 0) {
     // Read the incoming string until a newline character is received
     String incomingPayload = Serial.readStringUntil('\n');
-    
+
     // Clean up any stray carriage returns (\r) or whitespace
     incomingPayload.trim();
 
@@ -42,7 +42,7 @@ void loop() {
 
       // Pass the manually inputted JSON to the verification function
       verifyTicket(incomingPayload);
-      
+
       Serial.println("\nReady for next payload. Paste JSON and press Enter:");
     }
   }
