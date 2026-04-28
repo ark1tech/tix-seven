@@ -1,13 +1,19 @@
 import uuid
 
-from app.adapters.mosip import MOSIPAdapter, RealMOSIPAdapter
+from app.adapters.mosip import MOSIPAdapter, RealMOSIPAdapter, StubMOSIPAdapter
+from app.core.config import settings
 from app.core.crypto import hash_psut
 from app.models.schemas import VerifiedIdentity
 
 
 class IdentityService:
     def __init__(self, mosip: MOSIPAdapter | None = None):
-        self.mosip = mosip or RealMOSIPAdapter()
+        if mosip is not None:
+            self.mosip = mosip
+        elif settings.use_stub_mosip:
+            self.mosip = StubMOSIPAdapter()
+        else:
+            self.mosip = RealMOSIPAdapter()
 
     def verify(self, qr_payload: str) -> VerifiedIdentity | None:
         """

@@ -111,6 +111,7 @@ class VerificationResult:
 class MOSIPUnavailableError(Exception):
     """Raised when MOSIP cannot be reached or returns a transport-level error."""
 
+
 class MOSIPAdapter(Protocol):
     """
     Verify a PhilSys QR payload and extract the UIN.
@@ -142,13 +143,17 @@ class RealMOSIPAdapter:
 
     def verify(self, qr_payload: str) -> VerificationResult:
         if not qr_payload or not qr_payload.strip():
-            _auth_log.info("verify skipped: trace_id=%s reason=empty_qr_payload", get_trace_id())
+            _auth_log.info(
+                "verify skipped: trace_id=%s reason=empty_qr_payload", get_trace_id()
+            )
             return VerificationResult(verified=False, uin=None, psut=None)
 
         # splits "UIN and the demographical content of the QR payload"
         uin, demographics = self._parse_qr(qr_payload)
         if uin is None or demographics is None:
-            _auth_log.info("verify skipped: trace_id=%s reason=invalid_qr_payload", get_trace_id())
+            _auth_log.info(
+                "verify skipped: trace_id=%s reason=invalid_qr_payload", get_trace_id()
+            )
             return VerificationResult(verified=False, uin=None, psut=None)
 
         ## Calls upon the MOSIP sdk
@@ -293,12 +298,47 @@ class RealMOSIPAdapter:
 class StubMOSIPAdapter:
     """Used in tests and local dev without WireGuard access."""
 
-    # Hardcoded PSUT that matches the DEV_PSUT constant in verification.py.
+    _MOCK_DATA_FILE = os.path.join(_CREDS_DIR, "mock_identities.json")
 
-    _STUB_PSUT = "DEV_PSUT"
+    def __init__(self):
+        self._valid: list[dict] = []
+        self._invalid: list[dict] = []
+        self._load_mock_data()
+
+    def _load_mock_data(self) -> None:
+        import json as _json
+
+        if not os.path.isfile(self._MOCK_DATA_FILE):
+            return
+        with open(self._MOCK_DATA_FILE, "r") as f:
+            data = _json.load(f)
+            self._valid = data.get("valid", [])
+            self._invalid = data.get("invalid", [])
+
+    def _canonical(self, data: dict) -> frozenset[tuple[str, str]]:
+        return frozenset((k, str(v)) for k, v in data.items())
 
     def verify(self, qr_payload: str) -> VerificationResult:
+        import json as _json
+
         if not qr_payload or not qr_payload.strip():
             return VerificationResult(verified=False, uin=None, psut=None)
-        mock_uin = qr_payload.strip()[:16]
-        return VerificationResult(verified=True, uin=mock_uin, psut=self._STUB_PSUT)
+
+        try:
+            payload = _json.loads(qr_payload)
+        except _json.JSONDecodeError:
+            return VerificationResult(verified=False, uin=None, psut=None)
+
+        payloadCanonical = self._canonical(payload)
+
+        for valid in self._valid:
+            if self._canonical(valid) == payloadCanonical:
+                uin = payload.get("uin")
+                psut = f"DEV_PSUT_{uin}"
+                return VerificationResult(verified=True, uin=uin, psut=psut)
+
+        for invalid in self._invalid:
+            if self._canonical(invalid) == payloadCanonical:
+                return VerificationResult(verified=False, uin=None, psut=None)
+
+        return VerificationResult(verified=False, uin=None, psut=None)
