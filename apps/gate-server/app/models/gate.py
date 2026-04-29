@@ -26,23 +26,25 @@ class Gate(Base):
         ForeignKey("venue.venue_id"), nullable=False
     )
 
+    # Non-ID Fields
     location: Mapped[str] = mapped_column(String, nullable=False)
 
     status: Mapped[GateStatusEnum] = mapped_column(
-        Enum(GateStatusEnum, name="gate_status"),
-        nullable=False,
-        server_default=GateStatusEnum.OFFLINE,
+        Enum(GateStatusEnum, name="gate_status"), nullable=False, server_default=GateStatusEnum.OFFLINE
     )
 
     # Relationships
-    venue: Mapped["Venue"] = relationship("Venue", back_populates="gates")
-    assignments: Mapped[List["GateAssignment"]] = relationship(
-        "GateAssignment",
-        back_populates="gate",
-        cascade="all, delete-orphan",
-        passive_deletes=True
+    venue: Mapped["Venue"] = relationship(
+        "Venue", back_populates="gates"
     )
-    logs: Mapped[List["Log"]] = relationship("Log", back_populates="gate")
+
+    assignments: Mapped[List["GateAssignment"]] = relationship(
+        "GateAssignment", back_populates="gate", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+    logs: Mapped[List["Log"]] = relationship(
+        "Log", back_populates="gate"
+    )
 
     __table_args__ = (
         Index("ix_gate_venue_id", "venue_id"),

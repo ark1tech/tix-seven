@@ -12,6 +12,7 @@ from app.models.enums import AssignmentStatusEnum, EventStatusEnum, GateStatusEn
 from app.models.event import Event
 from app.models.gate import Gate
 from app.models.gate_assignment import GateAssignment
+from app.models.venue import Venue
 from app.models.schemas import GateCreateRequest, GateResponse, GateUpdateRequest
 
 logger = logging.getLogger(__name__)
@@ -22,103 +23,139 @@ class GateService:
         self.db = db
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Helpers
     # ------------------------------------------------------------------
 
-    def _get_active_event_id_for_gate(self, gate_id: uuid.UUID) -> uuid.UUID | None:
+    def _get_or_404(self, gate_id: uuid.UUID) -> Gate:
+        gate = self.db.scalar(select(Gate).where(Gate.gate_id == gate_id))
+
+        if gate is None:
+            logger.warning(
+                "gate not found: trace_id=%s gate_id=%s",
+                get_trace_id(),
+                gate_id,
+            )
+
+            raise HTTPException(status_code=404, detail="gate_not_found")
+
+        return gate
+
+    def _assert_venue_exists(self, venue_id: uuid.UUID) -> None:
+        if self.db.scalar(select(Venue).where(Venue.venue_id == venue_id)) is None:
+            logger.warning(
+                "gate operation failed: reason=venue_not_found status_code=404 "
+                "trace_id=%s venue_id=%s",
+                get_trace_id(),
+                venue_id,
+            )
+
+            raise HTTPException(status_code=404, detail="venue_not_found")
+
+    def _resolve_assignable_event(self, event_id: uuid.UUID) -> Event:
         """
-        Return active event_id for a gate if it exists.
+        Fetch the event and verify it is in an assignable state.
+        
+        Raises a 404 if missing and a 409 if not assignable.
         """
 
-        stmt = (
-            select(GateAssignment.event_id)
-            .where(
+        event = self.db.scalar(select(Event).where(Event.event_id == event_id))
+
+        if event is None:
+            logger.warning(
+                "gate operation failed: reason=event_not_found status_code=404 "
+                "trace_id=%s event_id=%s",
+                get_trace_id(),
+                event_id,
+            )
+
+            raise HTTPException(status_code=404, detail="event_not_found")
+
+        if event.status not in (EventStatusEnum.SCHEDULED, EventStatusEnum.ACTIVE):
+            logger.warning(
+                "gate operation failed: reason=event_not_assignable status_code=409 "
+                "trace_id=%s event_id=%s event_status=%s",
+                get_trace_id(),
+                event_id,
+                event.status.value,
+            )
+
+            raise HTTPException(status_code=409, detail="event_not_assignable")
+
+        return event
+
+    def _assert_gate_offline(self, gate: Gate, operation: str) -> None:
+        """
+        Block assignment changes while the gate is ONLINE.
+        """
+
+        if gate.status == GateStatusEnum.ONLINE:
+            logger.warning(
+                "gate operation failed: reason=gate_online operation=%s "
+                "status_code=409 trace_id=%s gate_id=%s",
+                operation,
+                get_trace_id(),
+                gate.gate_id,
+            )
+
+            raise HTTPException(status_code=409, detail="gate_must_be_offline")
+
+    def _get_active_assignment(self, gate_id: uuid.UUID) -> GateAssignment | None:
+        return self.db.scalar(
+            select(GateAssignment).where(
                 GateAssignment.gate_id == gate_id,
                 GateAssignment.status == AssignmentStatusEnum.ACTIVE,
             )
-            .limit(1)
         )
 
-        return self.db.scalar(stmt)
-
-    def _get_event_venue_id(self, event_id: uuid.UUID) -> uuid.UUID:
+    def _get_active_event_id(self, gate_id: uuid.UUID) -> uuid.UUID | None:
         """
-        Resolve venue_id from event, ensuring the event exists.
+        Return the event_id of the gate's current active assignment, or None.
         """
 
-        stmt = select(Event).where(Event.event_id == event_id)
+        return self.db.scalar(
+            select(GateAssignment.event_id).where(
+                GateAssignment.gate_id == gate_id,
+                GateAssignment.status == AssignmentStatusEnum.ACTIVE,
+            )
+        )
 
-        event = self.db.scalar(stmt)
-
-        if event is None:
-            raise HTTPException(status_code=404, detail="event_not_found")
-
-        return event.venue_id
-
-    def _ensure_event_is_active(self, event_id: uuid.UUID) -> None:
+    def _deactivate_assignment(
+        self, assignment: GateAssignment, now: datetime.datetime
+    ) -> None:
         """
-        Ensure event is in ACTIVE state before any assignment.
+        Mark an existing ACTIVE assignment as INACTIVE.
+        
+        Caller is responsible for ensuring the gate is OFFLINE first.
         """
 
-        stmt = select(Event).where(Event.event_id == event_id)
+        assignment.status = AssignmentStatusEnum.INACTIVE
+        assignment.unassigned_at = now
 
-        event = self.db.scalar(stmt)
-
-        if event is None:
-            raise HTTPException(status_code=404, detail="event_not_found")
-
-        if event.status != EventStatusEnum.ACTIVE:
-            raise HTTPException(status_code=409, detail="event_not_active")
-
-    def _create_gate_assignment(
+    def _create_assignment(
         self,
         gate_id: uuid.UUID,
         event_id: uuid.UUID,
         now: datetime.datetime,
     ) -> None:
-        """
-        Create a new ACTIVE gate assignment.
-        """
-
-        assignment = GateAssignment(
-            gate_id=gate_id,
-            event_id=event_id,
-            status=AssignmentStatusEnum.ACTIVE,
-            assigned_at=now,
+        self.db.add(
+            GateAssignment(
+                gate_id=gate_id,
+                event_id=event_id,
+                status=AssignmentStatusEnum.ACTIVE,
+                assigned_at=now,
+            )
         )
-
-        self.db.add(assignment)
-
-    def _deactivate_gate_assignment(
-        self, gate_id: uuid.UUID, now: datetime.datetime
-    ) -> None:
-        """
-        Deactivate the current ACTIVE assignment of a gate if it exists.
-        """
-
-        stmt = select(GateAssignment).where(
-            GateAssignment.gate_id == gate_id,
-            GateAssignment.status == AssignmentStatusEnum.ACTIVE,
-        )
-
-        assignment = self.db.scalar(stmt)
-
-        if assignment is not None:
-            assignment.status = AssignmentStatusEnum.INACTIVE
-            assignment.unassigned_at = now
 
     def _now(self) -> datetime.datetime:
-        return self._now()
+        return datetime.datetime.now(datetime.timezone.utc)
 
-    def _map_event_to_response(self, gate: Gate) -> GateResponse:
-        event_id = self._get_active_event_id_for_gate(gate.gate_id)
-
+    def _to_response(self, gate: Gate) -> GateResponse:
         return GateResponse(
             gate_id=gate.gate_id,
             venue_id=gate.venue_id,
             location=gate.location,
-            status=gate.status.value,
-            event_id=event_id,
+            status=gate.status,
+            event_id=self._get_active_event_id(gate.gate_id),
         )
 
     # ------------------------------------------------------------------
@@ -127,77 +164,73 @@ class GateService:
 
     def create(self, body: GateCreateRequest) -> GateResponse:
         trace_id = get_trace_id()
+
         logger.info(
-            "gate create start: trace_id=%s location=%s event_id=%s",
+            "gate create start: trace_id=%s venue_id=%s location=%s event_id=%s",
             trace_id,
+            body.venue_id,
             body.location,
             body.event_id,
         )
 
+        self._assert_venue_exists(body.venue_id)
+
         if body.event_id is not None:
-            self._ensure_event_is_active(body.event_id)
+            event = self._resolve_assignable_event(body.event_id)
 
-            venue_id = self._get_event_venue_id(body.event_id)
-
-        else:
-            # Fall back to any existing venue
-            # Paul: Uhhhhh do we really ba,,,
-
-            stmt = select(Event.venue_id).limit(1)
-
-            venue_id = self.db.scalar(stmt)
-
-            if venue_id is None:
-                raise HTTPException(status_code=422, detail="no_venue_found")
+            # The gate must belong to the same venue as the event it is assigned to
+            if event.venue_id != body.venue_id:
+                logger.warning(
+                    "gate create failed: reason=venue_mismatch status_code=409 "
+                    "trace_id=%s gate_venue_id=%s event_venue_id=%s",
+                    trace_id,
+                    body.venue_id,
+                    event.venue_id,
+                )
+    
+                raise HTTPException(status_code=409, detail="venue_mismatch")
 
         gate = Gate(
+            venue_id=body.venue_id,
             location=body.location,
-            venue_id=venue_id,
-            status=GateStatusEnum.OFFLINE,
+            status=GateStatusEnum.OFFLINE,  # All gates begin as OFFLINE
         )
 
         self.db.add(gate)
-        self.db.flush()
+        self.db.flush()  # Materialize gate_id before creating assignment
 
         if body.event_id is not None:
-            now = self._now()
-
-            self._create_gate_assignment(
-                gate.gate_id,
-                body.event_id,
-                now,
-            )
+            self._create_assignment(gate.gate_id, body.event_id, self._now())
 
         self.db.commit()
         self.db.refresh(gate)
 
         logger.info(
-            "gate create succeeded: trace_id=%s gate_id=%s status_code=201",
+            "gate create succeeded: trace_id=%s gate_id=%s",
             trace_id,
             gate.gate_id,
         )
 
-        return self._map_event_to_response(gate)
+        return self._to_response(gate)
+
+    def get(self, gate_id: uuid.UUID) -> GateResponse:
+        return self._to_response(self._get_or_404(gate_id))
+
+    def get_all(self) -> list[GateResponse]:
+        gates = self.db.scalars(select(Gate).order_by(Gate.location)).all()  # Order by location is arbitrary
+
+        return [self._to_response(gate) for gate in gates]
 
     def update(self, gate_id: uuid.UUID, body: GateUpdateRequest) -> GateResponse:
         trace_id = get_trace_id()
+
         logger.info(
             "gate update start: trace_id=%s gate_id=%s",
             trace_id,
             gate_id,
         )
 
-        stmt = select(Gate).where(Gate.gate_id == gate_id)
-
-        gate = self.db.scalar(stmt)
-
-        if gate is None:
-            logger.warning(
-                "gate update failed: reason=gate_not_found status_code=404 trace_id=%s gate_id=%s",
-                trace_id,
-                gate_id,
-            )
-            raise HTTPException(status_code=404, detail="gate_not_found")
+        gate = self._get_or_404(gate_id)
 
         fields = body.model_fields_set
 
@@ -205,54 +238,84 @@ class GateService:
             gate.location = body.location
 
         if "event_id" in fields:
-            new_event_id = body.event_id  # May be None for explicit unassign
-            current_event_id = self._get_active_event_id_for_gate(gate_id)
+            # body.event_id may be None, which means explicit unassign
+    
+            new_event_id = body.event_id
+    
+            current_assignment = self._get_active_assignment(gate_id)
+
+            current_event_id = (
+                current_assignment.event_id if current_assignment else None
+            )
 
             if new_event_id != current_event_id:
+                # Any change to assignment requires the gate to be OFFLINE.
+                self._assert_gate_offline(gate, "reassign")
+
                 now = self._now()
 
-                # Remove any existing active assignment
-                self._deactivate_gate_assignment(gate_id, now)
+                if current_assignment is not None:
+                    self._deactivate_assignment(current_assignment, now)
 
-                # Validate and attach if assigning a new event
                 if new_event_id is not None:
-                    self._ensure_event_is_active(new_event_id)
+                    event = self._resolve_assignable_event(new_event_id)
 
-                    venue_id = self._get_event_venue_id(new_event_id)
-                    gate.venue_id = venue_id
+                    if event.venue_id != gate.venue_id:
+                        logger.warning(
+                            "gate update failed: reason=venue_mismatch status_code=409 "
+                            "trace_id=%s gate_id=%s gate_venue_id=%s event_venue_id=%s",
+                            trace_id,
+                            gate_id,
+                            gate.venue_id,
+                            event.venue_id,
+                        )
+                        raise HTTPException(status_code=409, detail="venue_mismatch")
 
-                    self._create_gate_assignment(gate_id, new_event_id, now)
+                    self._create_assignment(gate_id, new_event_id, now)
 
         self.db.commit()
         self.db.refresh(gate)
 
         logger.info(
-            "gate update succeeded: trace_id=%s gate_id=%s status_code=200",
+            "gate update succeeded: trace_id=%s gate_id=%s",
             trace_id,
             gate_id,
         )
 
-        return self._map_event_to_response(gate)
+        return self._to_response(gate)
 
     def delete(self, gate_id: uuid.UUID) -> None:
         trace_id = get_trace_id()
+
         logger.info(
             "gate delete start: trace_id=%s gate_id=%s",
             trace_id,
             gate_id,
         )
 
-        stmt = select(Gate).where(Gate.gate_id == gate_id)
+        gate = self._get_or_404(gate_id)
 
-        gate = self.db.scalar(stmt)
-
-        if gate is None:
+        # Block deletion of ONLINE gates because they may be mid-scan
+        if gate.status == GateStatusEnum.ONLINE:
             logger.warning(
-                "gate delete failed: reason=gate_not_found status_code=404 trace_id=%s gate_id=%s",
+                "gate delete failed: reason=gate_online status_code=409 "
+                "trace_id=%s gate_id=%s",
                 trace_id,
                 gate_id,
             )
-            raise HTTPException(status_code=404, detail="gate_not_found")
+
+            raise HTTPException(status_code=409, detail="gate_must_be_offline")
+
+        # Block deletion if an active assignment exists. The gate should be explicitly unassigned before deletion
+        if self._get_active_assignment(gate_id) is not None:
+            logger.warning(
+                "gate delete failed: reason=gate_has_active_assignment status_code=409 "
+                "trace_id=%s gate_id=%s",
+                trace_id,
+                gate_id,
+            )
+
+            raise HTTPException(status_code=409, detail="gate_has_active_assignment")
 
         try:
             self.db.delete(gate)
@@ -260,15 +323,17 @@ class GateService:
 
         except IntegrityError:
             self.db.rollback()
+
             logger.warning(
-                "gate delete failed: reason=gate_in_use status_code=409 trace_id=%s gate_id=%s",
+                "gate delete failed: reason=gate_has_dependents status_code=409 "
+                "trace_id=%s gate_id=%s",
                 trace_id,
                 gate_id,
             )
-            raise HTTPException(status_code=409, detail="gate_in_use")
+            raise HTTPException(status_code=409, detail="gate_has_dependents")
 
         logger.info(
-            "gate delete succeeded: trace_id=%s gate_id=%s status_code=204",
+            "gate delete succeeded: trace_id=%s gate_id=%s",
             trace_id,
             gate_id,
         )

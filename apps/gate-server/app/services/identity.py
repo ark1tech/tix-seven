@@ -10,8 +10,10 @@ class IdentityService:
     def __init__(self, mosip: MOSIPAdapter | None = None):
         if mosip is not None:
             self.mosip = mosip
+
         elif settings.use_stub_mosip:
             self.mosip = StubMOSIPAdapter()
+
         else:
             self.mosip = RealMOSIPAdapter()
 
@@ -19,8 +21,9 @@ class IdentityService:
         """
         Forward the QR payload to the MOSIP Testbed.
 
-        Returns a VerifiedIdentity on success, or None if the identity could
-        not be verified (unrecognised UIN, attribute mismatch, missing PSUT).
+        Returns a VerifiedIdentity on success, or None if the identity could not be verified (unrecognised UIN, attribute mismatch, missing PSUT).
+
+        Raises MOSIPUnavailableError if the adapter cannot reach the testbed.
         """
 
         result = self.mosip.verify(qr_payload)
@@ -32,7 +35,7 @@ class IdentityService:
 
     def compute_link_hash(self, psut: str, event_id: uuid.UUID) -> str:
         """
-        Derive the deterministic per-identity-per-event hash.
+        Derive the *deterministic* per-identity-per-event binding hash.
 
         link_hash = HMAC-SHA256(pepper, "{psut}:{event_id}")
         """

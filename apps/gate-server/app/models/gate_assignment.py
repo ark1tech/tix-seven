@@ -23,31 +23,34 @@ class GateAssignment(Base):
     )
 
     gate_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("gate.gate_id", ondelete="CASCADE"),
-        nullable=False
+        ForeignKey("gate.gate_id", ondelete="CASCADE"), nullable=False
     )
 
     event_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("event.event_id", ondelete="CASCADE"),
-        nullable=False
+        ForeignKey("event.event_id", ondelete="CASCADE"), nullable=False
     )
 
+    # Non-ID Fields
     status: Mapped[AssignmentStatusEnum] = mapped_column(
-        Enum(AssignmentStatusEnum, name="assignment_status"),
-        nullable=False,
-        server_default=AssignmentStatusEnum.ACTIVE,
+        Enum(AssignmentStatusEnum, name="assignment_status"), nullable=False, server_default=AssignmentStatusEnum.ACTIVE
     )
 
     assigned_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
 
-    unassigned_at: Mapped[Optional[datetime.datetime]] = mapped_column(
-        DateTime, nullable=True
-    )
+    unassigned_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
 
     # Relationships
-    gate: Mapped["Gate"] = relationship("Gate", back_populates="assignments")
-    event: Mapped["Event"] = relationship("Event", back_populates="assignments")
-    logs: Mapped[List["Log"]] = relationship("Log", back_populates="assignment")
+    gate: Mapped["Gate"] = relationship(
+        "Gate", back_populates="assignments"
+    )
+
+    event: Mapped["Event"] = relationship(
+        "Event", back_populates="assignments"
+    )
+
+    logs: Mapped[List["Log"]] = relationship(
+        "Log", back_populates="assignment"
+    )
 
     __table_args__ = (
         CheckConstraint(

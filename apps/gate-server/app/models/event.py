@@ -36,38 +36,44 @@ class Event(Base):
         ForeignKey("venue.venue_id"), nullable=False
     )
 
+    # Non-ID Fields
     name: Mapped[str] = mapped_column(String, nullable=False)
 
     status: Mapped[EventStatusEnum] = mapped_column(
-        Enum(EventStatusEnum, name="event_status"),
-        nullable=False,
-        server_default=EventStatusEnum.SCHEDULED,
+        Enum(EventStatusEnum, name="event_status"), nullable=False, server_default=EventStatusEnum.SCHEDULED
     )
 
-    start_time: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
-    end_time: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
     capacity: Mapped[int] = mapped_column(Integer, nullable=False)
 
+    start_time: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+
+    end_time: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+
     # Relationships
-    venue: Mapped["Venue"] = relationship("Venue", back_populates="events")
-    assignments: Mapped[List["GateAssignment"]] = relationship(
-        "GateAssignment",
-        back_populates="event",
-        cascade="all, delete-orphan",
-        passive_deletes=True
+    venue: Mapped["Venue"] = relationship(
+        "Venue", back_populates="events"
     )
+
+    assignments: Mapped[List["GateAssignment"]] = relationship(
+        "GateAssignment", back_populates="event", cascade="all, delete-orphan", passive_deletes=True
+    )
+
     ticket_links: Mapped[List["EventTicketLink"]] = relationship(
         "EventTicketLink", back_populates="event"
     )
-    tickets: Mapped[List["Ticket"]] = relationship("Ticket", back_populates="event")
-    logs: Mapped[List["Log"]] = relationship("Log", back_populates="event")
+
+    tickets: Mapped[List["Ticket"]] = relationship(
+        "Ticket", back_populates="event"
+    )
+
+    logs: Mapped[List["Log"]] = relationship(
+        "Log", back_populates="event"
+    )
 
     __table_args__ = (
         CheckConstraint("end_time > start_time", name="check_if_event_time_valid"),
 
         Index("ix_event_venue_id", "venue_id"),
-
-        # Note: Ensuring status does not go backwards e.g., CONCLUDED to ACTIVE is not a database-level concern
-        Index("ix_event_status", "status"),
+        Index("ix_event_status", "status"),      # Paul's Note: Ensuring status does not go backwards, e.g., CONCLUDED to ACTIVE is not a database-level concern
         Index("ix_event_time_range", "start_time", "end_time"),
     )

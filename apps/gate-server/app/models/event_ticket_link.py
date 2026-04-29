@@ -24,10 +24,14 @@ class EventTicketLink(Base):
         ForeignKey("event.event_id"), nullable=False
     )
 
+    # Non-ID Fields
     link_hash: Mapped[str] = mapped_column(String, unique=True, nullable=False)
 
     # Relationships
-    event: Mapped["Event"] = relationship("Event", back_populates="ticket_links")
+    event: Mapped["Event"] = relationship(
+        "Event", back_populates="ticket_links"
+    )
+
     ticket: Mapped[Optional["Ticket"]] = relationship(
         "Ticket", back_populates="ticket_link", uselist=False
     )

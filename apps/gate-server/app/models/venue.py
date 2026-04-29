@@ -19,10 +19,16 @@ class Venue(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
 
+    # Non-ID Fields
     name: Mapped[str] = mapped_column(String, nullable=False)
 
     # Relationships
-    events: Mapped[List["Event"]] = relationship("Event", back_populates="venue")
-    gates: Mapped[List["Gate"]] = relationship("Gate", back_populates="venue")
+    events: Mapped[List["Event"]] = relationship(
+        "Event", back_populates="venue"
+    )
+
+    gates: Mapped[List["Gate"]] = relationship(
+        "Gate", back_populates="venue", cascade="all, delete-orphan", passive_deletes=True
+    )
 
     __table_args__ = (Index("ix_venue_name", "name"),)

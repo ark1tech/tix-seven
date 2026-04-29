@@ -1,23 +1,36 @@
+import logging
 import uuid
 
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.adapters.mosip import MOSIPUnavailableError
+from app.core.utils import parse_uuid
 from app.models.enums import (
     AssignmentStatusEnum,
     DenialReasonEnum,
+    EventStatusEnum,
+    GateStatusEnum,
     ResultEnum,
     TicketStatusEnum,
 )
+from app.models.event import Event
 from app.models.event_ticket_link import EventTicketLink
+from app.models.gate import Gate
 from app.models.gate_assignment import GateAssignment
 from app.models.log import Log
-from app.models.scan_attempt_log import ScanAttemptLog
 from app.models.schemas import VerifyContext, VerifyResponse
 from app.models.ticket import Ticket
 from app.services.identity import IdentityService
 
+logger = logging.getLogger(__name__)
+
+class _DenySignal(Exception):
+    """
+    Internal sentinel raised by _deny() to unwind the pipeline.
+
+    Using a dedicated type instead of bare Exception lets the outer handler distinguish a controlled denial from a genuine unhandled error, so each is logged at the appropriate level.
+    """
 
 class VerificationService:
     def __init__(self, db: Session, identity: IdentityService | None = None):
@@ -26,55 +39,50 @@ class VerificationService:
 
     def verify(self, qr_payload: str, gate_id: str) -> VerifyResponse:
         """
-        Entry point.
-        Runs the server-side validation pipeline and always records a row in
-        ``scan_attempt_log`` before returning. When the gate and event are
-        resolvable, an additional row is written to ``log``.
-
-        On any exception, the transaction is rolled back, writes are applied,
-        and a "deny" is returned to the ESP8266 when applicable.
+        Entry point. Runs the server-side validation pipeline (Phase 2) and writes a log row before returning.
         """
 
         context = self._init_context(qr_payload, gate_id)
 
         try:
-            context = self._resolve_gate(context)     # Pipeline Phase 2, Step 1
-            context = self._verify_identity(context)  # Pipeline Phase 2, Steps 2-4
-            context = self._resolve_ticket(context)   # Pipeline Phase 2, Steps 5-6
-            context = self._grant(context)            # Pipeline Phase 2, Step 7
+            context = self._resolve_gate(context)     # Phase 2, Step 1
+            context = self._verify_identity(context)  # Phase 2, Steps 2-3
+            context = self._resolve_ticket(context)   # Phase 2, Steps 4-5
+            context = self._grant(context)            # Phase 2, Step 6
 
-        except Exception:
-            # Catch both controlled denials raised by _deny and unexpected errors.
-
-            if context.result is None:
-                # Unhandled exception before result was assigned: log as ERROR with reason.
-                context.result = ResultEnum.ERROR
-                context.denial_reason = DenialReasonEnum.INTERNAL_SERVER_ERROR
-                context.error_code = "INTERNAL_SERVER_ERROR"
-                context.response = VerifyResponse(
-                    result="deny",
-                    reason=context.denial_reason,
-                )
-
+        except _DenySignal:
+            # Controlled Denial: result and denial_reason are already set
             self.db.rollback()
-            self._write_scan_attempt(context)
+
             self._write_log(context)
+
             self.db.commit()
 
-            assert context.response is not None
+        except Exception:
+            # Unhandled Error: log at ERROR level and return a safe deny
+            logger.exception(
+                "verify unhandled error: trace_id=%s gate_id=%s",
+                context.gate_id,
+            )
+    
+            context.result = ResultEnum.ERROR
+            context.denial_reason = DenialReasonEnum.INTERNAL_SERVER_ERROR
+            context.response = VerifyResponse(
+                result="deny",
+                reason=DenialReasonEnum.INTERNAL_SERVER_ERROR,
+            )
+        
+            self.db.rollback()
 
-            return context.response
+            self._write_log(context)
 
-        # Happy path: log the granted result alongside the committed ticket update.
-        self._write_scan_attempt(context)
-        self._write_log(context)
-        self.db.commit()
+            self.db.commit()
 
         assert context.response is not None
-
+    
         return context.response
 
-    # Context initialisation
+    # Context initialization
     def _init_context(self, qr_payload: str, gate_id: str) -> VerifyContext:
         return VerifyContext(
             qr_payload=qr_payload,
@@ -83,55 +91,77 @@ class VerificationService:
 
     # ------------------------------------------------------------------
     # Pipeline Phase 2, Step 1
-
-    # The intermediary server identifies which event_id is currently assigned to the gate that submitted the scan.
     # ------------------------------------------------------------------
 
     def _resolve_gate(self, ctx: VerifyContext) -> VerifyContext:
-        gate_uuid = self._to_uuid(ctx.gate_id)
+        """
+        Validate the gate_id, confirm the gate is ONLINE, and resolve the currently active GateAssignment to obtain event_id.
+        """
+    
+        gate_uuid = parse_uuid(ctx.gate_id)
 
         if gate_uuid is None:
             # Malformed gate_id is a system/configuration fault, not a wrong event.
-            return self._deny(
-                ctx, DenialReasonEnum.INVALID_GATE_ID, "DENY_INVALID_GATE_ID"
-            )
+            return self._deny(ctx, DenialReasonEnum.INVALID_GATE_ID)
+
+        gate = self._get_gate(gate_uuid)
+
+        if gate is None:
+            return self._deny(ctx, DenialReasonEnum.INVALID_GATE_ID)
+
+        if gate.status == GateStatusEnum.OFFLINE:
+            # Gate exists but is not accepting scans (Paul: trivial)
+            return self._deny(ctx, DenialReasonEnum.GATE_OFFLINE)
 
         assignment = self._get_active_assignment(gate_uuid)
 
         if assignment is None:
-            # No active GateAssignment found for this gate. The gate may be offline or not yet assigned to an event.
-            return self._deny(ctx, DenialReasonEnum.INVALID_GATE_ASSIGNMENT, "DENY_INVALID_GATE_ASSIGNMENT")
+            return self._deny(ctx, DenialReasonEnum.INVALID_GATE_ASSIGNMENT)
 
-        ctx.assignment_id, ctx.event_id = assignment
+        assignment_id, event_id = assignment
+
+        event = self._get_event(event_id)
+
+        if event is None:
+            # Data integrity issue wherein an active assignment references a non-existent event
+            return self._deny(ctx, DenialReasonEnum.EVENT_NOT_FOUND)
+
+        if event.status == EventStatusEnum.CONCLUDED:
+            # Only ACTIVE and SCHEDULED events accept scans
+
+            # A.K.A. you cannot go to an event that is done
+            return self._deny(ctx, DenialReasonEnum.EVENT_CONCLUDED)
+
+        ctx.assignment_id = assignment_id
+        ctx.event_id = event_id
+    
+        ctx.gate_location_snapshot = gate.location
+        ctx.event_name_snapshot = event.name
 
         return ctx
 
     # ------------------------------------------------------------------
     # Pipeline Phase 2, Steps 2-4
-
-    # The server forwards the UIN to the MOSIP Testbed for validation.
-
-    # If verification succeeds, MOSIP returns the PSUT for the identity, and then the system computes the link_hash.
     # ------------------------------------------------------------------
 
     def _verify_identity(self, ctx: VerifyContext) -> VerifyContext:
+        """
+        Forward the QR payload to MOSIP. On success, store the PSUT and compute the link_hash that will be used to look up the ticket.
+        """
+    
         try:
             verified = self.identity.verify(ctx.qr_payload)
-        except MOSIPUnavailableError:
-            return self._deny(
-                ctx, DenialReasonEnum.SERVER_TIMEOUT, "DENY_MOSIP_UNAVAILABLE"
-            )
 
-        # Otherwise, the server commits a denied result in the Log table and issues a "DENY" command to the ESP8266.
+        except MOSIPUnavailableError:
+            return self._deny(ctx, DenialReasonEnum.SERVER_TIMEOUT)
+
         if verified is None:
-            return self._deny(
-                ctx, DenialReasonEnum.IDENTITY_NOT_VERIFIED, "DENY_IDENTITY_NOT_VERIFIED"
-            )
+            return self._deny(ctx, DenialReasonEnum.IDENTITY_NOT_VERIFIED)
 
         ctx.uin = verified.uin
         ctx.psut = verified.psut
 
-        # Compute the link hash now that both PSUT and event_id are known.
+        # Compute the link hash now that both PSUT and event_id are known
         # link_hash = HMAC-SHA256(pepper, "{psut}:{event_id}")
 
         assert ctx.event_id is not None
@@ -142,59 +172,64 @@ class VerificationService:
 
     # ------------------------------------------------------------------
     # Pipeline Phase 2, Steps 5-6
-
-    # The server queries the EventTicketLink table for a record matching the recomputed link_hash, then validates the associated ticket.
     # ------------------------------------------------------------------
 
     def _resolve_ticket(self, ctx: VerifyContext) -> VerifyContext:
+        """
+        Look up the EventTicketLink by the recomputed hash, then validate the associated ticket.
+        """
+
         assert ctx.event_id is not None
         assert ctx.link_hash is not None
 
         link = self._find_link(ctx.event_id, ctx.link_hash)
 
         if link is None:
-            return self._deny(
-                ctx, DenialReasonEnum.LINK_NOT_FOUND, "DENY_LINK_NOT_FOUND"
-            )
+            # No purchase record found for this identity and event
+            return self._deny(ctx, DenialReasonEnum.LINK_NOT_FOUND)
 
         ctx.link_id = link.link_id
 
         ticket = self._find_ticket(ctx.link_id)
 
         if ticket is None:
-            return self._deny(
-                ctx, DenialReasonEnum.TICKET_NOT_FOUND, "DENY_TICKET_NOT_FOUND"
-            )
-
-        if ticket.status == TicketStatusEnum.USED:
-            return self._deny(
-                ctx, DenialReasonEnum.TICKET_ALREADY_USED, "DENY_TICKET_ALREADY_USED"
-            )
+            # Data integrity issue wherein a link exists but no ticket is associated
+            return self._deny(ctx, DenialReasonEnum.TICKET_NOT_FOUND)
 
         ctx.ticket_id = ticket.ticket_id
+        ctx.ticket_status_snapshot = ticket.status.value
+
+        if ticket.status == TicketStatusEnum.USED:
+            return self._deny(ctx, DenialReasonEnum.TICKET_ALREADY_USED)
 
         return ctx
 
     # ------------------------------------------------------------------
     # Pipeline Phase 2, Step 7
-
-    # The UPDATE is conditional on status = UNUSED so that a race between two concurrent scans of the same ticket can only succeed once.
     # ------------------------------------------------------------------
 
     def _grant(self, ctx: VerifyContext) -> VerifyContext:
+        """
+        Mark the ticket as used.
+    
+        The UPDATE is conditional on status = UNUSED so that a race between two concurrent scans of the same ticket can only succeed once.
+        """
+    
         assert ctx.ticket_id is not None
 
-        updated = self._mark_used(ctx.ticket_id)
+        updated = self._mark_ticket_as_used(ctx.ticket_id)
 
         if not updated:
-            # Another request marked the ticket used between our read and this write.
-            return self._deny(ctx, DenialReasonEnum.TICKET_ALREADY_USED, "DENY_RACE")
+            # Another request won the race between our read and this write
+            ctx.ticket_status_snapshot = TicketStatusEnum.USED.value
+
+            # Paul: Technically, this could also be TICKET_NOT_FOUND if the ticket was deleted after we read it, but that should never happen in a sane system so treat it as already used
+            return self._deny(ctx, DenialReasonEnum.TICKET_ALREADY_USED)
 
         ctx.result = ResultEnum.GRANTED
-
         ctx.response = VerifyResponse(
             result="grant",
-            ticket_id=str(ctx.ticket_id),
+            ticket_id=ctx.ticket_id,
         )
 
         return ctx
@@ -203,68 +238,57 @@ class VerificationService:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _write_scan_attempt(self, ctx: VerifyContext) -> None:
-        assert ctx.result is not None
-
-        gate_uuid = self._to_uuid(ctx.gate_id)
-        self.db.add(
-            ScanAttemptLog(
-                gate_id_raw=ctx.gate_id,
-                gate_id=gate_uuid,
-                event_id=ctx.event_id,
-                assignment_id=ctx.assignment_id,
-                ticket_id=ctx.ticket_id,
-                result=ctx.result,
-                denial_reason=ctx.denial_reason,
-                error_code=ctx.error_code,
-                timestamp=func.now(),
-            )
-        )
-
-    def _write_log(self, ctx: VerifyContext) -> None:
-        gate_uuid = self._to_uuid(ctx.gate_id)
-
-        if gate_uuid is None:
-            # Event-linked operational log requires a valid gate_id FK.
-            return
-
-        if ctx.event_id is None:
-            return
-
-        self.db.add(
-            Log(
-                event_id=ctx.event_id,
-                gate_id=gate_uuid,
-                assignment_id=ctx.assignment_id,
-                ticket_id=ctx.ticket_id,  # Null for pre-ticket failures
-                result=ctx.result,
-                denial_reason=ctx.denial_reason,
-                timestamp=func.now(),
-            )
-        )
-
-    def _deny(
-        self,
-        ctx: VerifyContext,
-        reason: DenialReasonEnum,
-        error: str,
-    ) -> VerifyContext:
+    def _deny(self, ctx: VerifyContext, reason: DenialReasonEnum) -> VerifyContext:
         """
-        Set a denied result on the context and raise to unwind the pipeline.
+        Record a denied result on the context and raise _DenySignal to unwind the pipeline.
         """
 
         ctx.result = ResultEnum.DENIED
         ctx.denial_reason = reason
-        ctx.error_code = error
         ctx.response = VerifyResponse(result="deny", reason=reason)
 
-        raise Exception(error)
+        raise _DenySignal(reason)
+
+    def _write_log(self, ctx: VerifyContext) -> None:
+        """
+        Write a log for this scan attempt. Always called regardless of outcome. 
+        
+        gate_id may be null if raw parsing failed.
+        """
+
+        assert ctx.result is not None
+
+        gate_uuid = parse_uuid(ctx.gate_id)
+
+        self.db.add(
+            Log(
+                raw_gate_id_snapshot=ctx.gate_id,
+                gate_id=gate_uuid,
+                gate_location_snapshot=ctx.gate_location_snapshot,
+                event_id=ctx.event_id,
+                event_name_snapshot=ctx.event_name_snapshot,
+                assignment_id=ctx.assignment_id,
+                ticket_id=ctx.ticket_id,
+                ticket_status_snapshot=ctx.ticket_status_snapshot,
+                result=ctx.result,
+                denial_reason=ctx.denial_reason,
+            )
+        )
+
+    def _get_gate(self, gate_id: uuid.UUID) -> Gate | None:
+        """
+        Return the Gate record for the given gate_id, or None if not found.
+        """
+
+        stmt = select(Gate).where(Gate.gate_id == gate_id)
+
+        return self.db.scalar(stmt)
 
     def _get_active_assignment(
         self, gate_id: uuid.UUID
     ) -> tuple[uuid.UUID, uuid.UUID] | None:
         """
-        Return (assignment_id, event_id) for the gate's current active assignment, or None.
+        Return (assignment_id, event_id) for the gate's current active assignment, or None if no such assignment exists.
         """
 
         stmt = select(
@@ -275,11 +299,22 @@ class VerificationService:
             GateAssignment.status == AssignmentStatusEnum.ACTIVE,
         )
 
-        return self.db.execute(stmt).first()
+        result = self.db.execute(stmt).first()
+
+        return tuple(result) if result is not None else None
+
+    def _get_event(self, event_id: uuid.UUID) -> Event | None:
+        """
+        Return the Event record for the given event_id, or None if not found.
+        """
+
+        stmt = select(Event).where(Event.event_id == event_id)
+
+        return self.db.scalar(stmt)
 
     def _find_link(self, event_id: uuid.UUID, link_hash: str) -> EventTicketLink | None:
         """
-        Look up the EventTicketLink by event and hash.
+        Look up the EventTicketLink by event and recomputed hash.
         """
 
         stmt = (
@@ -295,19 +330,18 @@ class VerificationService:
 
     def _find_ticket(self, link_id: uuid.UUID) -> Ticket | None:
         """
-        Retrieve the ticket associated with a given link.
+        Retrieve the ticket associated with a given EventTicketLink.
         """
 
         stmt = select(Ticket).where(Ticket.link_id == link_id).limit(1)
 
         return self.db.scalar(stmt)
 
-    def _mark_used(self, ticket_id: uuid.UUID) -> bool:
+    def _mark_ticket_as_used(self, ticket_id: uuid.UUID) -> bool:
         """
-        Atomically mark a ticket as used. The WHERE clause on status = UNUSED
-        ensures only one concurrent request can succeed even under a race condition.
-
-        Returns True if a row was updated, False if the ticket was already used.
+        Mark a ticket as used.
+        
+        Returns True if the row was updated or False if the ticket was already used.
         """
 
         stmt = (
@@ -317,17 +351,11 @@ class VerificationService:
                 Ticket.status == TicketStatusEnum.UNUSED,
             )
             .values(status=TicketStatusEnum.USED, used_at=func.now())
+            .returning(Ticket.ticket_id)
         )
+
         result = self.db.execute(stmt)
 
-        return result.rowcount == 1
+        updated = result.fetchone()
 
-    def _to_uuid(self, raw_value: str) -> uuid.UUID | None:
-        """
-        Parse a UUID string, returning None on failure instead of raising.
-        """
-
-        try:
-            return uuid.UUID(raw_value)
-        except (TypeError, ValueError):
-            return None
+        return updated is not None
