@@ -1,7 +1,6 @@
 import logging
 import uuid
 
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -9,10 +8,9 @@ from app.adapters.mosip import MOSIPUnavailableError
 from app.core.trace import get_trace_id
 from app.core.utils import integrity_constraint_label, short_error_message
 from app.models.enums import EventStatusEnum, TicketStatusEnum
-from app.models.event import Event
-from app.models.event_ticket_link import EventTicketLink
 from app.models.schemas import IssueContext, IssueResponse
-from app.models.ticket import Ticket
+from app.repositories.event import EventRepository
+from app.repositories.ticket import TicketRepository
 from app.services.identity import IdentityService
 
 
@@ -34,9 +32,17 @@ class _IssueError(Exception):
 
 
 class IssuanceService:
-    def __init__(self, db: Session, identity: IdentityService | None = None):
+    def __init__(
+        self,
+        db: Session,
+        identity: IdentityService | None = None,
+        events: EventRepository | None = None,
+        tickets: TicketRepository | None = None,
+    ) -> None:
         self.db = db
         self.identity = identity or IdentityService()
+        self.events = events or EventRepository(db)
+        self.tickets = tickets or TicketRepository(db)
 
     def issue(self, qr_payload: str, event_id: uuid.UUID) -> IssueResponse:
         """
@@ -57,14 +63,12 @@ class IssuanceService:
         context = self._init_context(qr_payload, event_id)
 
         try:
-            context = self._resolve_event(context)       # Phase 0, Extra
-            context = self._verify_identity(context)     # Phase 0, Steps 3-4
-            context = self._create_ticket(context)       # Phase 0, Step 5
+            context = self._resolve_event(context)    # Phase 0, Extra
+            context = self._verify_identity(context)  # Phase 0, Steps 3-4
+            context = self._create_ticket(context)    # Phase 0, Step 5
 
         except _IssueError as exc:
-            raise HTTPException(
-                status_code=exc.status_code, detail=exc.detail
-            ) from exc
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
         assert context.ticket_id is not None
         assert context.link_id is not None
@@ -91,13 +95,11 @@ class IssuanceService:
     def _resolve_event(self, ctx: IssueContext) -> IssueContext:
         """
         Confirm the target event exists and is in a state that allows ticket issuance.
-        
+
         Issuing tickets for a CONCLUDED or CANCELLED event is not permitted.
         """
 
-        event = self.db.scalar(
-            select(Event).where(Event.event_id == ctx.event_id)
-        )
+        event = self.events.get_by_id(ctx.event_id)
 
         if event is None:
             logger.warning(
@@ -111,19 +113,20 @@ class IssuanceService:
 
         if event.status not in (EventStatusEnum.SCHEDULED, EventStatusEnum.ACTIVE):
             logger.warning(
-                "issue failed: reason=event_%s status_code=409 "
+                "issue failed: reason=event_not_accepting_tickets status_code=409 "
                 "trace_id=%s event_id=%s event_status=%s",
-                event.status.value.lower(),
                 get_trace_id(),
                 ctx.event_id,
                 event.status.value,
             )
 
-            return self._abort(409, f"event_{event.status.value.lower()}")
+            return self._abort(409, "event_not_accepting_tickets")
 
         return ctx
 
-    # ── Phase 0, Steps 3–4: Identity verification ────────────────────────────
+    # ------------------------------------------------------------------
+    # Pipeline Phase 2, Steps 3-4
+    # ------------------------------------------------------------------
 
     def _verify_identity(self, ctx: IssueContext) -> IssueContext:
         """
@@ -132,7 +135,7 @@ class IssuanceService:
 
         try:
             verified = self.identity.verify(ctx.qr_payload)
-    
+
         except MOSIPUnavailableError:
             logger.error(
                 "issue failed: reason=mosip_unavailable status_code=503 "
@@ -150,10 +153,11 @@ class IssuanceService:
                 get_trace_id(),
                 ctx.event_id,
             )
+
             return self._abort(400, "identity_not_verified")
 
-        ctx.psut = verified.psut
         ctx.uin = verified.uin
+        ctx.psut = verified.psut
 
         ctx.link_hash = self.identity.compute_link_hash(ctx.psut, ctx.event_id)
 
@@ -173,24 +177,11 @@ class IssuanceService:
         assert ctx.psut is not None
         assert ctx.link_hash is not None
 
-        link = EventTicketLink(
-            event_id=ctx.event_id,
-            link_hash=ctx.link_hash,
-        )
-        ticket = Ticket(
-            event_id=ctx.event_id,
-            status=TicketStatusEnum.UNUSED,
-        )
-
         try:
-            self.db.add(link)
-            self.db.flush()  # Materialize link_id before assigning to ticket
+            link = self.tickets.create_link(ctx.event_id, ctx.link_hash)
+            ticket = self.tickets.create_ticket(ctx.event_id, link.link_id)
 
-            ticket.link_id = link.link_id
-    
-            self.db.add(ticket)
             self.db.commit()
-
             self.db.refresh(ticket)
 
         except IntegrityError as exc:

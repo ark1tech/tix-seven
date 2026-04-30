@@ -4,7 +4,7 @@ import uuid
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.core.trace import get_trace_id
 from app.models.enums import EventStatusEnum
@@ -16,7 +16,8 @@ from app.models.schemas import (
     EventStatusUpdateRequest,
     EventUpdateRequest,
 )
-from app.models.venue import Venue
+from app.repositories.event import EventRepository
+from app.repositories.venue import VenueRepository
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +29,15 @@ _VALID_TRANSITIONS: dict[EventStatusEnum, set[EventStatusEnum]] = {
 
 
 class EventService:
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        events: EventRepository | None = None,
+        venues: VenueRepository | None = None,
+    ) -> None:
         self.db = db
+        self.events = events or EventRepository(db)
+        self.venues = venues or VenueRepository(db)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -40,11 +48,7 @@ class EventService:
         Fetch an event with its venue.
         """
 
-        event = self.db.scalar(
-            select(Event)
-            .options(joinedload(Event.venue))
-            .where(Event.event_id == event_id)
-        )
+        event = self.events.get_by_id_with_venue(event_id)
 
         if event is None:
             logger.warning(
@@ -58,9 +62,7 @@ class EventService:
         return event
 
     def _assert_venue_exists(self, venue_id: uuid.UUID) -> None:
-        venue = self.db.scalar(select(Venue).where(Venue.venue_id == venue_id))
-
-        if venue is None:
+        if not self.venues.exists(venue_id):
             logger.warning(
                 "event operation failed: reason=venue_not_found status_code=404 "
                 "trace_id=%s venue_id=%s",
@@ -73,7 +75,7 @@ class EventService:
     def _assert_mutable(self, event: Event) -> None:
         """
         Reject field mutations on CONCLUDED events.
-        
+
         Note that ACTIVE events are mutable for capacity adjustments but time-window shifts are dangerous mid-scan.
         """
 
@@ -140,6 +142,7 @@ class EventService:
 
     def create(self, body: EventCreateRequest) -> EventResponse:
         trace_id = get_trace_id()
+
         logger.info(
             "event create start: trace_id=%s venue_id=%s name=%s",
             trace_id,
@@ -174,13 +177,7 @@ class EventService:
         return self._to_response(self._get_or_404(event_id))
 
     def get_all(self) -> list[EventResponse]:
-        events = self.db.scalars(
-            select(Event)
-            .options(joinedload(Event.venue))
-            .order_by(Event.start_time)
-        ).all()
-
-        return [self._to_response(event) for event in events]
+        return [self._to_response(event) for event in self.events.get_all_with_venue()]
 
     def update(self, event_id: uuid.UUID, body: EventUpdateRequest) -> EventResponse:
         trace_id = get_trace_id()
@@ -192,6 +189,7 @@ class EventService:
         )
 
         event = self._get_or_404(event_id)
+
         self._assert_mutable(event)
 
         fields = body.model_fields_set
@@ -262,11 +260,11 @@ class EventService:
             event_id,
             body.status.value,
         )
- 
+
         event = self._get_or_404(event_id)
- 
+
         allowed = _VALID_TRANSITIONS.get(event.status, set())
- 
+
         if body.status not in allowed:
             logger.warning(
                 "event status transition failed: reason=invalid_transition "
@@ -277,31 +275,33 @@ class EventService:
                 event.status.value,
                 body.status.value,
             )
+
             raise HTTPException(
                 status_code=409,
                 detail="invalid_status_transition",
             )
- 
+
         event.status = body.status
+
         self.db.commit()
- 
+
         event = self._get_or_404(event_id)
- 
+
         logger.info(
             "event status transition succeeded: trace_id=%s event_id=%s new_status=%s",
             trace_id,
             event_id,
             event.status.value,
         )
- 
+
         return self._to_response(event)
 
     def delete(self, event_id: uuid.UUID) -> None:
         """
         Hard-delete an event.
- 
-        SCHEDULED events that were never activated can be freely removed. 
-        
+
+        SCHEDULED events that were never activated can be freely removed.
+
         CANCELLED events may also be deleted once operators have confirmed there is no further need to retain the record.
         """
 
@@ -312,9 +312,9 @@ class EventService:
             trace_id,
             event_id,
         )
- 
+
         event = self._get_or_404(event_id)
- 
+
         if event.status not in (EventStatusEnum.SCHEDULED, EventStatusEnum.CANCELLED):
             logger.warning(
                 "event delete failed: reason=event_not_deletable status_code=409 "
@@ -328,7 +328,7 @@ class EventService:
                 status_code=409,
                 detail="only_scheduled_or_cancelled_events_can_be_deleted",
             )
- 
+
         try:
             self.db.delete(event)
             self.db.commit()
@@ -347,7 +347,7 @@ class EventService:
                 status_code=409,
                 detail="event_has_dependents",
             )
- 
+
         logger.info(
             "event delete succeeded: trace_id=%s event_id=%s",
             trace_id,

@@ -1,29 +1,25 @@
 import logging
-import uuid
 
-from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.adapters.mosip import MOSIPUnavailableError
 from app.core.utils import parse_uuid
 from app.models.enums import (
-    AssignmentStatusEnum,
     DenialReasonEnum,
     EventStatusEnum,
     GateStatusEnum,
     ResultEnum,
     TicketStatusEnum,
 )
-from app.models.event import Event
-from app.models.event_ticket_link import EventTicketLink
-from app.models.gate import Gate
-from app.models.gate_assignment import GateAssignment
 from app.models.log import Log
 from app.models.schemas import VerifyContext, VerifyResponse
-from app.models.ticket import Ticket
+from app.repositories.event import EventRepository
+from app.repositories.gate import GateRepository
+from app.repositories.ticket import TicketRepository
 from app.services.identity import IdentityService
 
 logger = logging.getLogger(__name__)
+
 
 class _DenySignal(Exception):
     """
@@ -32,10 +28,21 @@ class _DenySignal(Exception):
     Using a dedicated type instead of bare Exception lets the outer handler distinguish a controlled denial from a genuine unhandled error, so each is logged at the appropriate level.
     """
 
+
 class VerificationService:
-    def __init__(self, db: Session, identity: IdentityService | None = None):
+    def __init__(
+        self,
+        db: Session,
+        identity: IdentityService | None = None,
+        gates: GateRepository | None = None,
+        events: EventRepository | None = None,
+        tickets: TicketRepository | None = None,
+    ) -> None:
         self.db = db
         self.identity = identity or IdentityService()
+        self.gates = gates or GateRepository(db)
+        self.events = events or EventRepository(db)
+        self.tickets = tickets or TicketRepository(db)
 
     def verify(self, qr_payload: str, gate_id: str) -> VerifyResponse:
         """
@@ -45,10 +52,10 @@ class VerificationService:
         context = self._init_context(qr_payload, gate_id)
 
         try:
-            context = self._resolve_gate(context)     # Phase 2, Step 1
-            context = self._verify_identity(context)  # Phase 2, Steps 2-3
-            context = self._resolve_ticket(context)   # Phase 2, Steps 4-5
-            context = self._grant(context)            # Phase 2, Step 6
+            context = self._resolve_gate_and_event(context)  # Phase 2, Step 1
+            context = self._verify_identity(context)         # Phase 2, Steps 2-3
+            context = self._resolve_ticket(context)          # Phase 2, Steps 4-5
+            context = self._grant(context)                   # Phase 2, Step 6
 
         except _DenySignal:
             # Controlled Denial: result and denial_reason are already set
@@ -64,14 +71,14 @@ class VerificationService:
                 "verify unhandled error: trace_id=%s gate_id=%s",
                 context.gate_id,
             )
-    
+
             context.result = ResultEnum.ERROR
             context.denial_reason = DenialReasonEnum.INTERNAL_SERVER_ERROR
             context.response = VerifyResponse(
                 result="deny",
                 reason=DenialReasonEnum.INTERNAL_SERVER_ERROR,
             )
-        
+
             self.db.rollback()
 
             self._write_log(context)
@@ -79,7 +86,7 @@ class VerificationService:
             self.db.commit()
 
         assert context.response is not None
-    
+
         return context.response
 
     # Context initialization
@@ -93,18 +100,18 @@ class VerificationService:
     # Pipeline Phase 2, Step 1
     # ------------------------------------------------------------------
 
-    def _resolve_gate(self, ctx: VerifyContext) -> VerifyContext:
+    def _resolve_gate_and_event(self, ctx: VerifyContext) -> VerifyContext:
         """
         Validate the gate_id, confirm the gate is ONLINE, and resolve the currently active GateAssignment to obtain event_id.
         """
-    
+
         gate_uuid = parse_uuid(ctx.gate_id)
 
         if gate_uuid is None:
-            # Malformed gate_id is a system/configuration fault, not a wrong event.
+            # Malformed gate_id is a system or a configuration fault
             return self._deny(ctx, DenialReasonEnum.INVALID_GATE_ID)
 
-        gate = self._get_gate(gate_uuid)
+        gate = self.gates.get_by_id(gate_uuid)
 
         if gate is None:
             return self._deny(ctx, DenialReasonEnum.INVALID_GATE_ID)
@@ -113,28 +120,32 @@ class VerificationService:
             # Gate exists but is not accepting scans (Paul: trivial)
             return self._deny(ctx, DenialReasonEnum.GATE_OFFLINE)
 
-        assignment = self._get_active_assignment(gate_uuid)
+        assignment = self.gates.get_active_assignment_and_event_ids(gate_uuid)
 
         if assignment is None:
             return self._deny(ctx, DenialReasonEnum.INVALID_GATE_ASSIGNMENT)
 
         assignment_id, event_id = assignment
 
-        event = self._get_event(event_id)
+        event = self.events.get_by_id(event_id)
 
         if event is None:
             # Data integrity issue wherein an active assignment references a non-existent event
             return self._deny(ctx, DenialReasonEnum.EVENT_NOT_FOUND)
 
-        if event.status == EventStatusEnum.CONCLUDED:
+        if event.status not in (EventStatusEnum.SCHEDULED, EventStatusEnum.ACTIVE):
             # Only ACTIVE and SCHEDULED events accept scans
 
             # A.K.A. you cannot go to an event that is done
-            return self._deny(ctx, DenialReasonEnum.EVENT_CONCLUDED)
+            if event.status == EventStatusEnum.CONCLUDED:
+                return self._deny(ctx, DenialReasonEnum.EVENT_CONCLUDED)
+
+            else:
+                return self._deny(ctx, DenialReasonEnum.EVENT_CANCELLED)
 
         ctx.assignment_id = assignment_id
         ctx.event_id = event_id
-    
+
         ctx.gate_location_snapshot = gate.location
         ctx.event_name_snapshot = event.name
 
@@ -148,7 +159,7 @@ class VerificationService:
         """
         Forward the QR payload to MOSIP. On success, store the PSUT and compute the link_hash that will be used to look up the ticket.
         """
-    
+
         try:
             verified = self.identity.verify(ctx.qr_payload)
 
@@ -182,7 +193,7 @@ class VerificationService:
         assert ctx.event_id is not None
         assert ctx.link_hash is not None
 
-        link = self._find_link(ctx.event_id, ctx.link_hash)
+        link = self.tickets.find_link(ctx.event_id, ctx.link_hash)
 
         if link is None:
             # No purchase record found for this identity and event
@@ -190,7 +201,7 @@ class VerificationService:
 
         ctx.link_id = link.link_id
 
-        ticket = self._find_ticket(ctx.link_id)
+        ticket = self.tickets.find_ticket_by_link(ctx.link_id)
 
         if ticket is None:
             # Data integrity issue wherein a link exists but no ticket is associated
@@ -211,13 +222,13 @@ class VerificationService:
     def _grant(self, ctx: VerifyContext) -> VerifyContext:
         """
         Mark the ticket as used.
-    
+
         The UPDATE is conditional on status = UNUSED so that a race between two concurrent scans of the same ticket can only succeed once.
         """
-    
+
         assert ctx.ticket_id is not None
 
-        updated = self._mark_ticket_as_used(ctx.ticket_id)
+        updated = self.tickets.mark_used(ctx.ticket_id)
 
         if not updated:
             # Another request won the race between our read and this write
@@ -251,8 +262,8 @@ class VerificationService:
 
     def _write_log(self, ctx: VerifyContext) -> None:
         """
-        Write a log for this scan attempt. Always called regardless of outcome. 
-        
+        Write a log for this scan attempt. Always called regardless of outcome.
+
         gate_id may be null if raw parsing failed.
         """
 
@@ -274,88 +285,3 @@ class VerificationService:
                 denial_reason=ctx.denial_reason,
             )
         )
-
-    def _get_gate(self, gate_id: uuid.UUID) -> Gate | None:
-        """
-        Return the Gate record for the given gate_id, or None if not found.
-        """
-
-        stmt = select(Gate).where(Gate.gate_id == gate_id)
-
-        return self.db.scalar(stmt)
-
-    def _get_active_assignment(
-        self, gate_id: uuid.UUID
-    ) -> tuple[uuid.UUID, uuid.UUID] | None:
-        """
-        Return (assignment_id, event_id) for the gate's current active assignment, or None if no such assignment exists.
-        """
-
-        stmt = select(
-            GateAssignment.assignment_id,
-            GateAssignment.event_id,
-        ).where(
-            GateAssignment.gate_id == gate_id,
-            GateAssignment.status == AssignmentStatusEnum.ACTIVE,
-        )
-
-        result = self.db.execute(stmt).first()
-
-        return tuple(result) if result is not None else None
-
-    def _get_event(self, event_id: uuid.UUID) -> Event | None:
-        """
-        Return the Event record for the given event_id, or None if not found.
-        """
-
-        stmt = select(Event).where(Event.event_id == event_id)
-
-        return self.db.scalar(stmt)
-
-    def _find_link(self, event_id: uuid.UUID, link_hash: str) -> EventTicketLink | None:
-        """
-        Look up the EventTicketLink by event and recomputed hash.
-        """
-
-        stmt = (
-            select(EventTicketLink)
-            .where(
-                EventTicketLink.event_id == event_id,
-                EventTicketLink.link_hash == link_hash,
-            )
-            .limit(1)
-        )
-
-        return self.db.scalar(stmt)
-
-    def _find_ticket(self, link_id: uuid.UUID) -> Ticket | None:
-        """
-        Retrieve the ticket associated with a given EventTicketLink.
-        """
-
-        stmt = select(Ticket).where(Ticket.link_id == link_id).limit(1)
-
-        return self.db.scalar(stmt)
-
-    def _mark_ticket_as_used(self, ticket_id: uuid.UUID) -> bool:
-        """
-        Mark a ticket as used.
-        
-        Returns True if the row was updated or False if the ticket was already used.
-        """
-
-        stmt = (
-            update(Ticket)
-            .where(
-                Ticket.ticket_id == ticket_id,
-                Ticket.status == TicketStatusEnum.UNUSED,
-            )
-            .values(status=TicketStatusEnum.USED, used_at=func.now())
-            .returning(Ticket.ticket_id)
-        )
-
-        result = self.db.execute(stmt)
-
-        updated = result.fetchone()
-
-        return updated is not None

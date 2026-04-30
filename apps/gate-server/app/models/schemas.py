@@ -161,10 +161,12 @@ class EventUpdateRequest(BaseModel):
     end_time: Optional[datetime] = None
     capacity: Optional[int] = Field(default=None, gt=0)
 
+
 class EventStatusUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: EventStatusEnum
+
 
 class EventResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -197,6 +199,7 @@ class GateUpdateRequest(BaseModel):
 
     location: Optional[str] = None
     event_id: Optional[uuid.UUID] = None
+
 
 class GateResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")

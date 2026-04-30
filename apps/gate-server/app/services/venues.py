@@ -9,13 +9,19 @@ from app.core.trace import get_trace_id
 from app.models.event import Event
 from app.models.venue import Venue
 from app.models.schemas import VenueCreateRequest, VenueResponse, VenueUpdateRequest
+from app.repositories.venue import VenueRepository
 
 logger = logging.getLogger(__name__)
 
 
 class VenueService:
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        venues: VenueRepository | None = None,
+    ) -> None:
         self.db = db
+        self.venues = venues or VenueRepository(db)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -72,7 +78,7 @@ class VenueService:
         return self._to_response(self._get_or_404(venue_id))
 
     def get_all(self) -> list[VenueResponse]:
-        venues = self.db.scalars(select(Venue).order_by(Venue.name)).all()
+        venues = self.venues.get_all()
 
         return [self._to_response(venue) for venue in venues]
 
@@ -105,6 +111,7 @@ class VenueService:
         """
 
         trace_id = get_trace_id()
+
         logger.info(
             "venue delete start: trace_id=%s venue_id=%s",
             trace_id,

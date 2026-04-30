@@ -48,6 +48,9 @@ class DenialReasonEnum(str, enum.Enum):
     # The gate is assigned but the event is in CONCLUDED state
     EVENT_CONCLUDED = "EVENT_CONCLUDED"
 
+    # The gate is assigned but the event is in CANCELLED state
+    EVENT_CANCELLED = "EVENT_CANCELLED"
+
     # Phase 2, Step 3: MOSIP verification failed due to invalid, inactive, or mismatched identity
     IDENTITY_NOT_VERIFIED = "IDENTITY_NOT_VERIFIED"
 
