@@ -1,46 +1,37 @@
-# seed.py
+# seeder.py
 
-import uuid
 import datetime
+
 from app.db.session import SessionLocal
-from app.models.venue import Venue
-from app.models.event import Event
-from app.models.gate import Gate
-from app.models.gate_assignment import GateAssignment
-from app.models.event_ticket_link import EventTicketLink
-from app.models.ticket import Ticket
-from app.models.log import Log
 from app.models.enums import (
-    GateStatusEnum,
-    TicketStatusEnum,
-    ResultEnum,
-    EventStatusEnum,
     AssignmentStatusEnum,
     DenialReasonEnum,
+    EventStatusEnum,
+    GateStatusEnum,
+    ResultEnum,
+    TicketStatusEnum,
 )
+from app.models.event import Event
+from app.models.event_ticket_link import EventTicketLink
+from app.models.gate import Gate
+from app.models.gate_assignment import GateAssignment
+from app.models.log import Log
+from app.models.ticket import Ticket
+from app.models.venue import Venue
 
-now = datetime.datetime.now()
+
+now = datetime.datetime.now(datetime.timezone.utc)
 
 
 def seed():
     db = SessionLocal()
 
     try:
-        # Venues
-
-        venue = Venue(
-            venue_id=uuid.uuid4(),
-            name="Mall of Asia Arena",
-        )
-
+        venue = Venue(name="Mall of Asia Arena")
         db.add(venue)
         db.flush()
 
-
-        # Events
-
-        event_upcoming = Event(
-            event_id=uuid.uuid4(),
+        event_scheduled = Event(
             venue_id=venue.venue_id,
             name="Eras Tour Manila",
             status=EventStatusEnum.SCHEDULED,
@@ -50,36 +41,39 @@ def seed():
         )
 
         event_active = Event(
-            event_id=uuid.uuid4(),
             venue_id=venue.venue_id,
-            name="Tinashe Is So 2 On World Tour",
+            name="Tinashe: 2 On World Tour",
             status=EventStatusEnum.ACTIVE,
             start_time=now - datetime.timedelta(hours=1),
             end_time=now + datetime.timedelta(hours=2),
             capacity=300,
         )
 
-        db.add_all([event_upcoming, event_active])
+        event_concluded = Event(
+            venue_id=venue.venue_id,
+            name="Ravyn Lenae: Hypnos Tour",
+            status=EventStatusEnum.CONCLUDED,
+            start_time=now - datetime.timedelta(days=7, hours=3),
+            end_time=now - datetime.timedelta(days=7),
+            capacity=200,
+        )
+
+        db.add_all([event_scheduled, event_active, event_concluded])
         db.flush()
 
-        # Gates
-
         gate_a = Gate(
-            gate_id=uuid.uuid4(),
             venue_id=venue.venue_id,
-            location="Hall A Primary",
+            location="Hall A - Main Entrance",
             status=GateStatusEnum.ONLINE,
         )
 
         gate_b = Gate(
-            gate_id=uuid.uuid4(),
             venue_id=venue.venue_id,
-            location="Hall B Secondary",
+            location="Hall B - Side Entrance",
             status=GateStatusEnum.ONLINE,
         )
 
         gate_c = Gate(
-            gate_id=uuid.uuid4(),
             venue_id=venue.venue_id,
             location="VIP Entrance",
             status=GateStatusEnum.OFFLINE,
@@ -88,120 +82,216 @@ def seed():
         db.add_all([gate_a, gate_b, gate_c])
         db.flush()
 
-        # Gate Assignments
-
         # gate_a and gate_b are assigned to the active event
-        # gate_c is offline and unassigned
-
         assignment_a = GateAssignment(
-            assignment_id=uuid.uuid4(),
             gate_id=gate_a.gate_id,
             event_id=event_active.event_id,
             status=AssignmentStatusEnum.ACTIVE,
             assigned_at=now - datetime.timedelta(hours=2),
-            unassigned_at=None,
         )
 
         assignment_b = GateAssignment(
-            assignment_id=uuid.uuid4(),
             gate_id=gate_b.gate_id,
             event_id=event_active.event_id,
             status=AssignmentStatusEnum.ACTIVE,
             assigned_at=now - datetime.timedelta(hours=2),
-            unassigned_at=None,
         )
 
-        db.add_all([assignment_a, assignment_b])
+        assignment_c_old = GateAssignment(
+            gate_id=gate_a.gate_id,
+            event_id=event_concluded.event_id,
+            status=AssignmentStatusEnum.INACTIVE,
+            assigned_at=now - datetime.timedelta(days=7, hours=4),
+            unassigned_at=now - datetime.timedelta(days=7),
+        )
+
+        assignment_d_old = GateAssignment(
+            gate_id=gate_b.gate_id,
+            event_id=event_concluded.event_id,
+            status=AssignmentStatusEnum.INACTIVE,
+            assigned_at=now - datetime.timedelta(days=7, hours=4),
+            unassigned_at=now - datetime.timedelta(days=7),
+        )
+
+        db.add_all([assignment_a, assignment_b, assignment_c_old, assignment_d_old])
         db.flush()
 
-        # EventTicketLinks
-        # Three attendees for the active event
-
-        link_1 = EventTicketLink(
-            link_id=uuid.uuid4(),
+        link_paul = EventTicketLink(
             event_id=event_active.event_id,
             link_hash="hash_psut_paul_" + str(event_active.event_id),
         )
-        link_2 = EventTicketLink(
-            link_id=uuid.uuid4(),
+        link_arki = EventTicketLink(
             event_id=event_active.event_id,
             link_hash="hash_psut_arki_" + str(event_active.event_id),
         )
-        link_3 = EventTicketLink(
-            link_id=uuid.uuid4(),
+        link_kurt = EventTicketLink(
             event_id=event_active.event_id,
             link_hash="hash_psut_kurt_" + str(event_active.event_id),
         )
 
-        db.add_all([link_1, link_2, link_3])
+        db.add_all([link_paul, link_arki, link_kurt])
         db.flush()
 
-        # Tickets
-
-        ticket_1 = Ticket(
-            ticket_id=uuid.uuid4(),
-            link_id=link_1.link_id,
+        # Paul already scanned in
+        ticket_paul = Ticket(
+            link_id=link_paul.link_id,
             event_id=event_active.event_id,
             status=TicketStatusEnum.USED,
             created_at=now - datetime.timedelta(days=3),
             used_at=now - datetime.timedelta(minutes=30),
         )
-        ticket_2 = Ticket(
-            ticket_id=uuid.uuid4(),
-            link_id=link_2.link_id,
+
+        # Arki and Kurt are still outside
+        ticket_arki = Ticket(
+            link_id=link_arki.link_id,
             event_id=event_active.event_id,
             status=TicketStatusEnum.UNUSED,
             created_at=now - datetime.timedelta(days=2),
-            used_at=None,
         )
-        ticket_3 = Ticket(
-            ticket_id=uuid.uuid4(),
-            link_id=link_3.link_id,
+
+        ticket_kurt = Ticket(
+            link_id=link_kurt.link_id,
             event_id=event_active.event_id,
             status=TicketStatusEnum.UNUSED,
             created_at=now - datetime.timedelta(days=1),
-            used_at=None,
         )
 
-        db.add_all([ticket_1, ticket_2, ticket_3])
+        db.add_all([ticket_paul, ticket_arki, ticket_kurt])
         db.flush()
 
-        # Logs
+        ticket_concluded_1 = Ticket(
+            link_id=None,
+            event_id=event_concluded.event_id,
+            status=TicketStatusEnum.USED,
+            created_at=now - datetime.timedelta(days=10),
+            used_at=now - datetime.timedelta(days=7, hours=2),
+        )
+
+        ticket_concluded_2 = Ticket(
+            link_id=None,
+            event_id=event_concluded.event_id,
+            status=TicketStatusEnum.USED,
+            created_at=now - datetime.timedelta(days=9),
+            used_at=now - datetime.timedelta(days=7, hours=2, minutes=15),
+        )
+
+        ticket_concluded_3 = Ticket(
+            link_id=None,
+            event_id=event_concluded.event_id,
+            status=TicketStatusEnum.UNUSED,
+            created_at=now - datetime.timedelta(days=8),
+        )
+
+        db.add_all([ticket_concluded_1, ticket_concluded_2, ticket_concluded_3])
+        db.flush()
 
         log_granted = Log(
-            log_id=uuid.uuid4(),
-            event_id=event_active.event_id,
+            raw_gate_id_snapshot=str(gate_a.gate_id),
             gate_id=gate_a.gate_id,
+            gate_location_snapshot=gate_a.location,
+            event_id=event_active.event_id,
+            event_name_snapshot=event_active.name,
             assignment_id=assignment_a.assignment_id,
-            ticket_id=ticket_1.ticket_id,
+            ticket_id=ticket_paul.ticket_id,
+            ticket_status_snapshot=TicketStatusEnum.UNUSED.value,  # status at scan time
             result=ResultEnum.GRANTED,
             denial_reason=None,
             timestamp=now - datetime.timedelta(minutes=30),
         )
 
-        log_denied = Log(
-            log_id=uuid.uuid4(),
-            event_id=event_active.event_id,
+        log_denied_identity = Log(
+            raw_gate_id_snapshot=str(gate_a.gate_id),
             gate_id=gate_a.gate_id,
+            gate_location_snapshot=gate_a.location,
+            event_id=event_active.event_id,
+            event_name_snapshot=event_active.name,
             assignment_id=assignment_a.assignment_id,
-            ticket_id=None,  # identity verification failed as no ticket resolved
+            ticket_id=None,
+            ticket_status_snapshot=None,
             result=ResultEnum.DENIED,
             denial_reason=DenialReasonEnum.IDENTITY_NOT_VERIFIED,
             timestamp=now - datetime.timedelta(minutes=20),
         )
 
-        log_timeout = Log(
-            log_id=uuid.uuid4(),
-            event_id=event_active.event_id,
+        log_denied_used = Log(
+            raw_gate_id_snapshot=str(gate_b.gate_id),
             gate_id=gate_b.gate_id,
+            gate_location_snapshot=gate_b.location,
+            event_id=event_active.event_id,
+            event_name_snapshot=event_active.name,
+            assignment_id=assignment_b.assignment_id,
+            ticket_id=ticket_paul.ticket_id,
+            ticket_status_snapshot=TicketStatusEnum.USED.value,  # already redeemed
+            result=ResultEnum.DENIED,
+            denial_reason=DenialReasonEnum.TICKET_ALREADY_USED,
+            timestamp=now - datetime.timedelta(minutes=15),
+        )
+
+        log_timeout = Log(
+            raw_gate_id_snapshot=str(gate_b.gate_id),
+            gate_id=gate_b.gate_id,
+            gate_location_snapshot=gate_b.location,
+            event_id=event_active.event_id,
+            event_name_snapshot=event_active.name,
             assignment_id=assignment_b.assignment_id,
             ticket_id=None,
-            result=ResultEnum.TIMEOUT,
-            denial_reason=None,
+            ticket_status_snapshot=None,
+            result=ResultEnum.DENIED,
+            denial_reason=DenialReasonEnum.SERVER_TIMEOUT,
             timestamp=now - datetime.timedelta(minutes=10),
         )
 
-        db.add_all([log_granted, log_denied, log_timeout])
+        log_invalid_gate = Log(
+            raw_gate_id_snapshot="not-a-valid-uuid",
+            gate_id=None,
+            gate_location_snapshot=None,
+            event_id=None,
+            event_name_snapshot=None,
+            assignment_id=None,
+            ticket_id=None,
+            ticket_status_snapshot=None,
+            result=ResultEnum.DENIED,
+            denial_reason=DenialReasonEnum.INVALID_GATE_ID,
+            timestamp=now - datetime.timedelta(minutes=5),
+        )
+
+        db.add_all([
+            log_granted,
+            log_denied_identity,
+            log_denied_used,
+            log_timeout,
+            log_invalid_gate,
+        ])
+        db.flush()
+
+        log_concluded_1 = Log(
+            raw_gate_id_snapshot=str(gate_a.gate_id),
+            gate_id=gate_a.gate_id,
+            gate_location_snapshot=gate_a.location,
+            event_id=event_concluded.event_id,
+            event_name_snapshot=event_concluded.name,
+            assignment_id=assignment_c_old.assignment_id,
+            ticket_id=ticket_concluded_1.ticket_id,
+            ticket_status_snapshot=TicketStatusEnum.UNUSED.value,
+            result=ResultEnum.GRANTED,
+            denial_reason=None,
+            timestamp=now - datetime.timedelta(days=7, hours=2),
+        )
+        log_concluded_2 = Log(
+            raw_gate_id_snapshot=str(gate_b.gate_id),
+            gate_id=gate_b.gate_id,
+            gate_location_snapshot=gate_b.location,
+            event_id=event_concluded.event_id,
+            event_name_snapshot=event_concluded.name,
+            assignment_id=assignment_d_old.assignment_id,
+            ticket_id=ticket_concluded_2.ticket_id,
+            ticket_status_snapshot=TicketStatusEnum.UNUSED.value,
+            result=ResultEnum.GRANTED,
+            denial_reason=None,
+            timestamp=now - datetime.timedelta(days=7, hours=2, minutes=15),
+        )
+
+        db.add_all([log_concluded_1, log_concluded_2])
         db.flush()
 
         db.commit()

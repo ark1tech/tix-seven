@@ -1,8 +1,8 @@
-"""is paul is cooking or is he just stupid
+"""test hello?
 
-Revision ID: d16c6bebecd1
+Revision ID: 52f9f6453b6b
 Revises: 
-Create Date: 2026-04-22 23:16:10.398464
+Create Date: 2026-04-30 15:47:01.123017
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'd16c6bebecd1'
+revision: str = '52f9f6453b6b'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -31,10 +31,10 @@ def upgrade() -> None:
     sa.Column('event_id', sa.UUID(), nullable=False),
     sa.Column('venue_id', sa.UUID(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
-    sa.Column('status', sa.Enum('SCHEDULED', 'ACTIVE', 'CONCLUDED', name='event_status'), server_default='SCHEDULED', nullable=False),
+    sa.Column('status', sa.Enum('SCHEDULED', 'ACTIVE', 'CONCLUDED', 'CANCELLED', name='event_status'), server_default='SCHEDULED', nullable=False),
+    sa.Column('capacity', sa.Integer(), nullable=False),
     sa.Column('start_time', sa.DateTime(), nullable=False),
     sa.Column('end_time', sa.DateTime(), nullable=False),
-    sa.Column('capacity', sa.Integer(), nullable=False),
     sa.CheckConstraint('end_time > start_time', name='check_if_event_time_valid'),
     sa.ForeignKeyConstraint(['venue_id'], ['venue.venue_id'], ),
     sa.PrimaryKeyConstraint('event_id')
@@ -70,19 +70,20 @@ def upgrade() -> None:
     sa.Column('assigned_at', sa.DateTime(), nullable=False),
     sa.Column('unassigned_at', sa.DateTime(), nullable=True),
     sa.CheckConstraint("(status = 'INACTIVE'::assignment_status) = (unassigned_at IS NOT NULL)", name='check_unassigned_at_consistency'),
-    sa.ForeignKeyConstraint(['event_id'], ['event.event_id'], ),
-    sa.ForeignKeyConstraint(['gate_id'], ['gate.gate_id'], ),
+    sa.ForeignKeyConstraint(['event_id'], ['event.event_id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['gate_id'], ['gate.gate_id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('assignment_id')
     )
     op.create_index('ix_gate_assignment_event_id', 'gate_assignment', ['event_id'], unique=False)
     op.create_index('ix_gate_assignment_gate_id', 'gate_assignment', ['gate_id'], unique=False)
     op.create_index('ix_gate_assignment_status', 'gate_assignment', ['status'], unique=False)
+    op.create_index('uq_gate_assignment_active_gate', 'gate_assignment', ['gate_id'], unique=True, postgresql_where="status = 'ACTIVE'")
     op.create_table('ticket',
     sa.Column('ticket_id', sa.UUID(), nullable=False),
     sa.Column('link_id', sa.UUID(), nullable=True),
     sa.Column('event_id', sa.UUID(), nullable=False),
     sa.Column('status', sa.Enum('UNUSED', 'USED', name='ticket_status'), server_default='UNUSED', nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text("timezone('Asia/Manila', now())"), nullable=False),
     sa.Column('used_at', sa.DateTime(), nullable=True),
     sa.CheckConstraint("(status = 'USED'::ticket_status) = (used_at IS NOT NULL)", name='check_used_at_consistency'),
     sa.ForeignKeyConstraint(['event_id'], ['event.event_id'], ),
@@ -96,18 +97,26 @@ def upgrade() -> None:
     op.create_index('ix_ticket_used_at', 'ticket', ['used_at'], unique=False)
     op.create_table('log',
     sa.Column('log_id', sa.UUID(), nullable=False),
-    sa.Column('event_id', sa.UUID(), nullable=False),
-    sa.Column('gate_id', sa.UUID(), nullable=False),
-    sa.Column('assignment_id', sa.UUID(), nullable=False),
+    sa.Column('event_id', sa.UUID(), nullable=True),
+    sa.Column('gate_id', sa.UUID(), nullable=True),
+    sa.Column('assignment_id', sa.UUID(), nullable=True),
     sa.Column('ticket_id', sa.UUID(), nullable=True),
     sa.Column('result', sa.Enum('GRANTED', 'DENIED', 'TIMEOUT', 'ERROR', name='log_result'), nullable=False),
-    sa.Column('denial_reason', sa.Enum('IDENTITY_NOT_VERIFIED', 'LINK_NOT_FOUND', 'TICKET_NOT_FOUND', 'TICKET_ALREADY_USED', 'SERVER_TIMEOUT', 'INTERNAL_SERVER_ERROR', name='denial_reason'), nullable=True),
-    sa.Column('timestamp', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.CheckConstraint("(result = 'DENIED') = (denial_reason IS NOT NULL)", name='check_denial_reason_consistency'),
-    sa.ForeignKeyConstraint(['assignment_id'], ['gate_assignment.assignment_id'], ),
-    sa.ForeignKeyConstraint(['event_id'], ['event.event_id'], ),
-    sa.ForeignKeyConstraint(['gate_id'], ['gate.gate_id'], ),
-    sa.ForeignKeyConstraint(['ticket_id'], ['ticket.ticket_id'], ),
+    sa.Column('denial_reason', sa.Enum('INVALID_GATE_ID', 'GATE_OFFLINE', 'INVALID_GATE_ASSIGNMENT', 'EVENT_NOT_FOUND', 'EVENT_CONCLUDED', 'EVENT_CANCELLED', 'IDENTITY_NOT_VERIFIED', 'LINK_NOT_FOUND', 'WRONG_EVENT', 'TICKET_NOT_FOUND', 'TICKET_ALREADY_USED', 'SERVER_TIMEOUT', 'INTERNAL_SERVER_ERROR', name='denial_reason'), nullable=True),
+    sa.Column('timestamp', sa.DateTime(), server_default=sa.text("timezone('Asia/Manila', now())"), nullable=False),
+    sa.Column('event_name_snapshot', sa.String(), nullable=True),
+    sa.Column('raw_gate_id_snapshot', sa.String(), nullable=False),
+    sa.Column('gate_location_snapshot', sa.String(), nullable=True),
+    sa.Column('ticket_status_snapshot', sa.String(), nullable=True),
+    sa.CheckConstraint("(result = 'GRANTED') = (denial_reason IS NULL)", name='check_denial_reason_consistency'),
+    sa.CheckConstraint("result NOT IN ('TIMEOUT', 'ERROR') OR ticket_id IS NULL", name='check_ticket_absent_on_system_failure'),
+    sa.CheckConstraint('(event_id IS NULL) = (event_name_snapshot IS NULL)', name='check_event_snapshot_consistency'),
+    sa.CheckConstraint('(gate_id IS NULL) = (gate_location_snapshot IS NULL)', name='check_gate_snapshot_consistency'),
+    sa.CheckConstraint('(ticket_id IS NULL) = (ticket_status_snapshot IS NULL)', name='check_ticket_snapshot_consistency'),
+    sa.ForeignKeyConstraint(['assignment_id'], ['gate_assignment.assignment_id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['event_id'], ['event.event_id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['gate_id'], ['gate.gate_id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['ticket_id'], ['ticket.ticket_id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('log_id')
     )
     op.create_index('ix_log_assignment_id', 'log', ['assignment_id'], unique=False)
@@ -134,6 +143,7 @@ def downgrade() -> None:
     op.drop_index('ix_ticket_link_id', table_name='ticket')
     op.drop_index('ix_ticket_event_id', table_name='ticket')
     op.drop_table('ticket')
+    op.drop_index('uq_gate_assignment_active_gate', table_name='gate_assignment', postgresql_where="status = 'ACTIVE'")
     op.drop_index('ix_gate_assignment_status', table_name='gate_assignment')
     op.drop_index('ix_gate_assignment_gate_id', table_name='gate_assignment')
     op.drop_index('ix_gate_assignment_event_id', table_name='gate_assignment')
