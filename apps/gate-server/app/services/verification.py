@@ -68,7 +68,7 @@ class VerificationService:
         except Exception:
             # Unhandled Error: log at ERROR level and return a safe deny
             logger.exception(
-                "verify unhandled error: trace_id=%s gate_id=%s",
+                "verify unhandled error: gate_id=%s",
                 context.gate_id,
             )
 
@@ -78,6 +78,10 @@ class VerificationService:
                 result="deny",
                 reason=DenialReasonEnum.INTERNAL_SERVER_ERROR,
             )
+
+            # Satisfy check_ticket_absent_on_system_failure: if result is ERROR, ticket_id must be NULL
+            context.ticket_id = None
+            context.ticket_status_snapshot = None
 
             self.db.rollback()
 
