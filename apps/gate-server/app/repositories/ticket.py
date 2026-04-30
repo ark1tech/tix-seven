@@ -80,6 +80,4 @@ class TicketRepository:
             )
         )
 
-        updated = result.fetchone()
-
-        return updated is not None
+        return result.rowcount > 0

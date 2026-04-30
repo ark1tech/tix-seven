@@ -56,6 +56,9 @@ class VerificationService:
             context = self._verify_identity(context)         # Phase 2, Steps 2-3
             context = self._resolve_ticket(context)          # Phase 2, Steps 4-5
             context = self._grant(context)                   # Phase 2, Step 6
+            
+            self._write_log(context)
+            self.db.commit()
 
         except _DenySignal:
             # Controlled Denial: result and denial_reason are already set
