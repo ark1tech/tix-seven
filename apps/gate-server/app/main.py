@@ -16,9 +16,21 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Database check
     with engine.connect() as connection:
         connection.execute(text("SELECT 1"))
     logger.info("Database connectivity check passed.")
+
+    # Eagerly initialize MOSIP Authenticator to catch credential/crypto hangs at startup
+    from app.adapters.mosip import RealMOSIPAdapter
+
+    try:
+        _ = RealMOSIPAdapter()
+    except Exception as e:
+        logger.error("Failed to initialize MOSIP Authenticator: %s", str(e))
+        # We don't raise here to allow the server to start (e.g. for health checks),
+        # but the error will be visible in the logs.
+
     yield
 
 

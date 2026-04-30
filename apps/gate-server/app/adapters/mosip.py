@@ -3,10 +3,14 @@ import logging
 from dataclasses import dataclass
 from typing import Callable, Optional, Protocol
 
+import threading
 from dynaconf import Dynaconf
 from mosip_auth_sdk._authenticator.utils import restutil as mosip_restutil
+from mosip_auth_sdk._authenticator.utils.cryptoutil import CryptoUtility
 from mosip_auth_sdk import MOSIPAuthenticator
 from mosip_auth_sdk.models import DemographicsModel
+from cryptography.hazmat.primitives import serialization
+from jwcrypto import jwk
 from requests import RequestException
 
 from app.core.config import settings
@@ -94,6 +98,22 @@ def _make_authenticator() -> MOSIPAuthenticator:
     }
     config = Dynaconf(settings_file=None)
     config.update(cfg_dict)
+
+    # Monkey-patch CryptoUtility to bypass redundant and potentially hanging KDF
+    # during JWK creation. We use NoEncryption for the temporary PEM string.
+    def patched_get_jwk_private_key(priv_key_obj, key_password, logger):
+        priv_key_pem = priv_key_obj.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        logger.info(
+            "Creating JWK key for JWS signing (using patched NoEncryption path to bypass KDF)."
+        )
+        return jwk.JWK.from_pem(priv_key_pem)
+
+    CryptoUtility._get_jwk_private_key = staticmethod(patched_get_jwk_private_key)
+
     mosip_restutil.requests.post = _with_default_timeout(
         mosip_restutil.requests.post,
         timeout_seconds=_MOSIP_REQUEST_TIMEOUT_SECONDS,
@@ -126,6 +146,7 @@ class MOSIPAdapter(Protocol):
 
 
 _global_authenticator = None
+_init_lock = threading.Lock()
 
 
 class RealMOSIPAdapter:
@@ -137,7 +158,13 @@ class RealMOSIPAdapter:
     def __init__(self):
         global _global_authenticator
         if _global_authenticator is None:
-            _global_authenticator = _make_authenticator()
+            with _init_lock:
+                if _global_authenticator is None:
+                    _auth_log.info(
+                        "MOSIP Authenticator singleton not found. Starting initialization..."
+                    )
+                    _global_authenticator = _make_authenticator()
+                    _auth_log.info("MOSIP Authenticator initialized successfully.")
 
         self._authenticator = _global_authenticator
 
