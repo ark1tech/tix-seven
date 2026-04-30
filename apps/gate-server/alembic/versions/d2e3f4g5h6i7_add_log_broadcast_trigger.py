@@ -62,13 +62,14 @@ def upgrade() -> None:
     """)
 
     op.execute("""
+    DROP TRIGGER IF EXISTS log_broadcast_trigger ON log;
     CREATE TRIGGER log_broadcast_trigger
     AFTER INSERT ON log
     FOR EACH ROW EXECUTE FUNCTION broadcast_log();
     """)
 
 
-def downgrade() -> None:
+def downgrade() -> None:    
     """Remove log broadcast trigger."""
     op.execute("DROP TRIGGER IF EXISTS log_broadcast_trigger ON log;")
     op.execute("DROP FUNCTION IF EXISTS broadcast_log();")
