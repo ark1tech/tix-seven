@@ -6,17 +6,17 @@
 #include <Servo.h>
 
 // --- Configuration ---
-const char* ssid = "WIFI_SSID";
-const char* password = "WIFI_PASSWORD";
+const char* ssid = "5PLDT";
+const char* password = "Straw1berry!";
 
 // Server Details
-const char* serverUrl = "http://192.168.1.XXX:8000/verify"; // Replace with server's IP
-const char* apiKey = "secret_api_key";                      // Must match GATE_API_KEY
-const String gateId = "ESP8266-Gate-01";
+const char* serverUrl = "http://192.168.50.143:8000/verify"; // Replace with server's IP
+const char* apiKey = "64ca232bb34d5786219670dcb032dc8def1096de71b7c12c85fba03a02a7377e";                      // Must match GATE_API_KEY
+const String gateId = "04adee71-453f-4fff-b5ba-e2b7c4046ced";
 
 // --- Hardware Pins ---
-#define GREEN_LED_PIN D1
-#define RED_LED_PIN D2
+#define GREEN_LED_PIN D8
+#define RED_LED_PIN D7
 #define GATE_SERVO_PIN D3 // Connect to the Servo's signal (usually yellow/orange) wire
 #define SCANNER_RX_PIN D5 // Connected to Scanner TXD (Pin 5)
 #define SCANNER_TX_PIN D6 // Connected to Scanner RXD (Pin 4)
@@ -33,21 +33,26 @@ Servo gateServo;                  // Create the servo object
 
 void setup() {
   Serial.begin(115200); // For USB debugging
+  delay(5000);
+  Serial.println("\n\n---- System Stabilized ----\n");
   delay(1000);
 
+  // 3. Initialize the Radio in Station Mode
+  // WiFi.setOutputPower(15.0);
   pinMode(GREEN_LED_PIN, OUTPUT);
   pinMode(RED_LED_PIN, OUTPUT);
   digitalWrite(GREEN_LED_PIN, LOW);
   digitalWrite(RED_LED_PIN, LOW);
 
   // Initialize the Servo
-  gateServo.attach(GATE_SERVO_PIN);
-  gateServo.write(GATE_CLOSED_ANGLE); // Ensure gate is closed on startup
-
+  // gateServo.attach(GATE_SERVO_PIN);
+  // gateServo.write(GATE_CLOSED_ANGLE); // Ensure gate is closed on startup
+  delay(500);
   // Initialize Scanner Serial (GM861S default is 9600 baud)
   scannerSerial.begin(9600);
-
+  delay(500);
   // Connect to Wi-Fi
+  Serial.print("test");
   WiFi.begin(ssid, password);
   Serial.print("Connecting to WiFi");
   while (WiFi.status() != WL_CONNECTED) {
@@ -121,7 +126,7 @@ void verifyTicket(String qrPayload) {
         if (result == "grant") {
           Serial.println("ACCESS GRANTED! (Opening gate...)");
           digitalWrite(GREEN_LED_PIN, HIGH);
-
+          delay(3000);                       // Keep it open for 3 seconds
           // --- OPEN THE SERVO GATE ---
           gateServo.write(GATE_OPEN_ANGLE);  // Tell servo to move to OPEN position
           delay(3000);                       // Keep it open for 3 seconds
