@@ -155,7 +155,7 @@ export function IssueTicketPopover({ eventId, children }: Props) {
                 </PopoverHeader>
               </div>
 
-              <div className="relative mx-4 mb-2 rounded-lg overflow-hidden bg-black aspect-square">
+              <div className="relative mx-auto mb-2 rounded-lg overflow-hidden bg-black aspect-square w-[calc(100%-2rem)]">
                 {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
                 <video
                   id="qr-scanner-video"
