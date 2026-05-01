@@ -7,9 +7,9 @@ import { Loader2, CheckCircle2, AlertCircle, Camera, ScanLine } from "lucide-rea
 import { issueTicketAction } from "@/app/(dashboard)/events/[eventId]/actions";
 import { Button } from "@/components/ui/button";
 import type { IssueError } from "@/lib/gate-server/client";
+import { PHILSYS_PAYLOAD_FIELDS, type PhilsysPayload } from "@tix-seven/types";
 import {
   Dialog,
-  DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
@@ -43,6 +43,72 @@ interface Props {
   children: React.ReactElement;
 }
 
+function ScannedPayloadDisplay({ data }: { data: Partial<PhilsysPayload> }) {
+  const displayFields = PHILSYS_PAYLOAD_FIELDS.filter(
+    (f) => !["uin", "address_line1", "address_line2", "address_line3"].includes(f.key)
+  );
+
+  const addressParts = [
+    data.address_line1,
+    data.address_line2,
+    data.address_line3,
+  ].filter(Boolean);
+  const fullAddress = addressParts.join(", ");
+  const isAddressMissing = addressParts.length === 0;
+
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {displayFields.map((field) => {
+        const value = data?.[field.key];
+        const isMissing = !value;
+
+        return (
+          <div
+            key={field.key}
+            className={cn(
+              "flex flex-col p-2 rounded-md border border-input/30 transition-colors",
+              isMissing ? "bg-red-500/[0.03] border-red-500/20" : "bg-muted/20"
+            )}
+          >
+            <span className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-wide mb-0.5">
+              {field.label}
+            </span>
+            {isMissing ? (
+              <span className="text-xs text-red-500/60 font-medium leading-tight">
+                Section is missing
+              </span>
+            ) : (
+              <span className="text-xs text-foreground font-normal leading-tight wrap-break-word">
+                {value}
+              </span>
+            )}
+          </div>
+        );
+      })}
+
+      <div
+        className={cn(
+          "col-span-2 flex flex-col p-2 rounded-md border border-input/30 transition-colors",
+          isAddressMissing ? "bg-red-500/[0.03] border-red-500/20" : "bg-muted/20"
+        )}
+      >
+        <span className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-wide mb-0.5">
+          Address Line
+        </span>
+        {isAddressMissing ? (
+          <span className="text-xs text-red-500/60 font-medium leading-tight">
+            Section is missing
+          </span>
+        ) : (
+          <span className="text-xs text-foreground font-normal leading-tight wrap-break-word">
+            {fullAddress}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function IssueTicketPopover({ eventId, children }: Props) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -51,6 +117,7 @@ export function IssueTicketPopover({ eventId, children }: Props) {
   const [errorCode, setErrorCode] = React.useState<IssueError | null>(null);
   const [lastTicketId, setLastTicketId] = React.useState<string | null>(null);
   const scannerRef = React.useRef<import("@/lib/qr-scanner/camera-adapter").CameraAdapter | null>(null);
+  const resetTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSubmitting = phase === "submitting";
 
   const stopScanner = React.useCallback(() => {
@@ -80,17 +147,24 @@ export function IssueTicketPopover({ eventId, children }: Props) {
   const handleOpenChange = React.useCallback(
     (nextOpen: boolean) => {
       if (!nextOpen && isSubmitting) return;
-      setOpen(nextOpen);
-      if (!nextOpen) {
-        window.setTimeout(resetForm, 500);
+
+      if (resetTimeoutRef.current) {
+        window.clearTimeout(resetTimeoutRef.current);
+        resetTimeoutRef.current = null;
       }
+
+      if (nextOpen) {
+        resetForm();
+      }
+
+      setOpen(nextOpen);
     },
     [isSubmitting, resetForm]
   );
 
   React.useEffect(() => {
     if (open && phase === "scanning") {
-      startScanner().catch(() => {});
+      startScanner().catch(() => { });
     }
     return () => {
       if (!open) stopScanner();
@@ -121,7 +195,11 @@ export function IssueTicketPopover({ eventId, children }: Props) {
   function onRescan() {
     setPayload("");
     setErrorCode(null);
-    setPhase("scanning");
+    // Add a small delay to ensure the scanner is fully reset and doesn't immediately 
+    // pick up the same QR code frame.
+    setTimeout(() => {
+      setPhase("scanning");
+    }, 150);
   }
 
   const parsedPayload = React.useMemo(() => {
@@ -141,22 +219,22 @@ export function IssueTicketPopover({ eventId, children }: Props) {
       />
 
       <DialogPortal>
-        <DialogOverlay className="bg-black/60 backdrop-blur-none supports-backdrop-filter:backdrop-blur-none" />
+        <DialogOverlay className="bg-black/60 duration-200" />
         <DialogPrimitive.Popup
           data-slot="dialog-content"
           className={cn(
-            "fixed top-1/2 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2",
+            "fixed top-1/2 left-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2",
             "rounded-xl bg-popover text-popover-foreground ring-1 ring-foreground/10 shadow-2xl",
-            "p-0 overflow-hidden",
-            "duration-150 outline-none",
+            "p-0 overflow-hidden flex flex-col max-h-[90vh]",
+            "duration-200 outline-none",
             "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
             "data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
           )}
         >
-          <div className="min-h-[290px] flex flex-col">
+          <div className="min-h-[440px] flex flex-col">
             {phase === "scanning" && (
               <div className="flex-1 flex flex-col animate-in fade-in duration-200">
-                <div className="p-5 pb-3">
+                <div className="px-6 pt-6 pb-4">
                   <DialogHeader>
                     <DialogTitle>Issue Ticket</DialogTitle>
                     <DialogDescription>
@@ -165,37 +243,39 @@ export function IssueTicketPopover({ eventId, children }: Props) {
                   </DialogHeader>
                 </div>
 
-                <div className="relative mx-5 mb-3 rounded-lg overflow-hidden bg-black aspect-square">
-                  {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                  <video
-                    id="qr-scanner-video"
-                    className="w-full h-full object-cover"
-                    muted
-                    playsInline
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="relative w-44 h-44">
-                      <span className="absolute top-0 left-0 w-7 h-7 border-t-2 border-l-2 border-white/80 rounded-tl" />
-                      <span className="absolute top-0 right-0 w-7 h-7 border-t-2 border-r-2 border-white/80 rounded-tr" />
-                      <span className="absolute bottom-0 left-0 w-7 h-7 border-b-2 border-l-2 border-white/80 rounded-bl" />
-                      <span className="absolute bottom-0 right-0 w-7 h-7 border-b-2 border-r-2 border-white/80 rounded-br" />
-                      <ScanLine className="absolute inset-0 m-auto h-5 w-5 text-white/60 animate-pulse" />
+                <div className="px-6 flex-1 flex flex-col justify-center">
+                  <div className="relative rounded-lg overflow-hidden bg-black aspect-square shadow-inner">
+                    {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                    <video
+                      id="qr-scanner-video"
+                      className="w-full h-full object-cover"
+                      muted
+                      playsInline
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="relative w-[80%] h-[80%]">
+                        <span className="absolute top-0 left-0 w-10 h-10 border-t-[2px] border-l-[2px] border-white/90 rounded-tl-lg" />
+                        <span className="absolute top-0 right-0 w-10 h-10 border-t-[2px] border-r-[2px] border-white/90 rounded-tr-lg" />
+                        <span className="absolute bottom-0 left-0 w-10 h-10 border-b-[2px] border-l-[2px] border-white/90 rounded-bl-lg" />
+                        <span className="absolute bottom-0 right-0 w-10 h-10 border-b-[2px] border-r-[2px] border-white/90 rounded-br-lg" />
+                        <ScanLine className="absolute inset-0 m-auto h-10 w-10 text-white/50 animate-pulse" />
+                      </div>
                     </div>
+                  </div>
+
+                  <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground mt-4">
+                    <Camera className="h-3 w-3" />
+                    <span>Waiting for QR code…</span>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-                  <Camera className="h-3 w-3" />
-                  <span>Waiting for QR code…</span>
-                </div>
-
-                <div className="flex justify-end px-5 py-4 mt-auto">
+                <div className="flex justify-end px-6 py-4 mt-6 border-t bg-muted/30">
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     onClick={() => handleOpenChange(false)}
-                    className="text-muted-foreground"
+                    className="text-muted-foreground hover:bg-transparent"
                   >
                     Cancel
                   </Button>
@@ -204,29 +284,35 @@ export function IssueTicketPopover({ eventId, children }: Props) {
             )}
 
             {phase === "confirm" && (
-              <div className="p-5 flex-1 flex flex-col animate-in fade-in duration-200">
-                <DialogHeader className="mb-4">
-                  <DialogTitle>Confirm Payload</DialogTitle>
-                  <DialogDescription>
-                    Review the scanned QR data before issuing the ticket.
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="flex-1 rounded-lg border border-input/50 bg-muted/20 px-3 py-2 overflow-auto max-h-[200px]">
-                  <pre className="font-mono text-[10px] leading-relaxed whitespace-pre-wrap break-all text-foreground/80">
-                    {parsedPayload !== null
-                      ? JSON.stringify(parsedPayload, null, 2)
-                      : payload}
-                  </pre>
+              <div className="flex-1 flex flex-col animate-in fade-in duration-200">
+                <div className="px-6 pt-6 pb-4">
+                  <DialogHeader>
+                    <DialogTitle>Confirm Details</DialogTitle>
+                    <DialogDescription>
+                      Review the scanned QR data before issuing the ticket.
+                    </DialogDescription>
+                  </DialogHeader>
                 </div>
 
-                <div className="flex justify-end gap-2 pt-4 mt-auto">
+                <div className="px-6 flex-1 flex flex-col">
+                  <div className="flex-1 rounded-lg border border-input/50 bg-muted/5 p-4 overflow-auto max-h-[320px] custom-scrollbar">
+                    {parsedPayload !== null ? (
+                      <ScannedPayloadDisplay data={parsedPayload} />
+                    ) : (
+                      <pre className="font-mono text-sm leading-relaxed whitespace-pre-wrap break-all text-foreground/80">
+                        {payload}
+                      </pre>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 px-6 py-4 mt-6 border-t bg-muted/30">
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     onClick={onRescan}
-                    className="text-muted-foreground"
+                    className="text-muted-foreground hover:bg-transparent"
                   >
                     Rescan
                   </Button>
@@ -256,7 +342,7 @@ export function IssueTicketPopover({ eventId, children }: Props) {
                   Ticket issued successfully!
                 </p>
                 {lastTicketId && (
-                  <p className="text-[10px] font-mono text-muted-foreground mt-2 bg-muted/50 px-2 py-1 rounded">
+                  <p className="text-sm font-mono text-muted-foreground mt-2 bg-muted/50 px-2 py-1 rounded">
                     ID: {lastTicketId.slice(0, 8)}…
                   </p>
                 )}
@@ -264,36 +350,42 @@ export function IssueTicketPopover({ eventId, children }: Props) {
             )}
 
             {phase === "error" && (
-              <div className="p-5 flex-1 flex flex-col animate-in fade-in duration-200">
-                <DialogHeader className="mb-4">
-                  <DialogTitle>Issue Ticket</DialogTitle>
-                  <DialogDescription>
-                    Review the scanned QR data before issuing the ticket.
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="flex-1 rounded-lg border border-input/50 bg-muted/20 px-3 py-2 overflow-auto max-h-[120px]">
-                  <pre className="font-mono text-[10px] leading-relaxed whitespace-pre-wrap break-all text-foreground/80">
-                    {parsedPayload !== null
-                      ? JSON.stringify(parsedPayload, null, 2)
-                      : payload}
-                  </pre>
+              <div className="flex-1 flex flex-col animate-in fade-in duration-200">
+                <div className="px-6 pt-6 pb-4">
+                  <DialogHeader>
+                    <DialogTitle>Issue Ticket</DialogTitle>
+                    <DialogDescription>
+                      Review the scanned QR data before issuing the ticket.
+                    </DialogDescription>
+                  </DialogHeader>
                 </div>
 
-                {errorCode && (
-                  <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/5 p-2.5 rounded-lg border border-destructive/10 animate-in fade-in slide-in-from-top-1 duration-200 mt-3">
-                    <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                    <p>{messageForIssueError(errorCode)}</p>
+                <div className="px-6 flex-1 flex flex-col">
+                  <div className="flex-1 rounded-lg border border-input/50 bg-muted/5 p-4 overflow-auto max-h-[240px] custom-scrollbar">
+                    {parsedPayload !== null ? (
+                      <ScannedPayloadDisplay data={parsedPayload} />
+                    ) : (
+                      <pre className="font-mono text-sm leading-relaxed whitespace-pre-wrap break-all text-foreground/80">
+                        {payload}
+                      </pre>
+                    )}
                   </div>
-                )}
 
-                <div className="flex justify-end gap-2 pt-4 mt-auto">
+                  {errorCode && (
+                    <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/5 p-2.5 rounded-lg border border-destructive/10 animate-in fade-in slide-in-from-top-1 duration-200 mt-3">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <p>{messageForIssueError(errorCode)}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-2 px-6 py-4 mt-6 border-t bg-muted/30">
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     onClick={onRescan}
-                    className="text-muted-foreground"
+                    className="text-muted-foreground hover:bg-transparent"
                   >
                     Rescan
                   </Button>

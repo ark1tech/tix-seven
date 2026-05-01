@@ -141,3 +141,21 @@
     letter-spacing: -0.018em;
   }
 }
+
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--muted-foreground);
+    border-radius: 10px;
+    opacity: 0.3;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    opacity: 0.5;
+  }
+}
