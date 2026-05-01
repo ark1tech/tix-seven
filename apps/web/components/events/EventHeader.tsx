@@ -6,7 +6,7 @@ import { ChevronRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { IssueTicketButton } from "@/components/tickets/IssueTicketButton";
 import { MockScanButton } from "@/components/tickets/MockScanButton";
-import { formatEventDateMediumPht } from "@/lib/datetime-pht";
+import { formatEventDateMediumPht, parsePhtEventTimestampToDate } from "@/lib/datetime-pht";
 import { cn } from "@/lib/utils";
 import type { Event } from "@tix-seven/types";
 import type { Gate } from "@/app/(dashboard)/events/[eventId]/mock-scan-action";
@@ -23,7 +23,8 @@ export default function EventHeader({ event, gates }: Props) {
   const isEntryLog = pathname.endsWith("/entry-log");
   const isEdit = pathname.endsWith("/edit");
 
-  const formattedDate = formatEventDateMediumPht(event.start_time);
+   const formattedDate = formatEventDateMediumPht(event.start_time);
+  const isPastEvent = parsePhtEventTimestampToDate(event.end_time) < new Date();
 
   return (
     <div className="pb-5 border-b mb-8">
@@ -82,8 +83,8 @@ export default function EventHeader({ event, gates }: Props) {
               >
                 Live Entry Log
               </Link>
-              <IssueTicketButton eventId={event.event_id} />
-              <MockScanButton eventId={event.event_id} initialGates={gates} />
+              <IssueTicketButton eventId={event.event_id} disabled={isPastEvent} />
+              <MockScanButton eventId={event.event_id} initialGates={gates} disabled={isPastEvent} />
             </>
           )}
           {isEntryLog && (
