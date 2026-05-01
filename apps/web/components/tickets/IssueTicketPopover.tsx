@@ -8,13 +8,15 @@ import { issueTicketAction } from "@/app/(dashboard)/events/[eventId]/actions";
 import { Button } from "@/components/ui/button";
 import type { IssueError } from "@/lib/gate-server/client";
 import {
-  Popover,
-  PopoverContent,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverDescription,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogOverlay,
+  DialogPortal,
+} from "@/components/ui/dialog";
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { cn } from "@/lib/utils";
 
 type Phase = "scanning" | "confirm" | "submitting" | "success" | "error";
@@ -86,12 +88,9 @@ export function IssueTicketPopover({ eventId, children }: Props) {
     [isSubmitting, resetForm]
   );
 
-  // Start scanner when popover opens and phase is scanning
   React.useEffect(() => {
     if (open && phase === "scanning") {
-      startScanner().catch(() => {
-        // Camera access denied or unavailable — silently stay on scanning phase
-      });
+      startScanner().catch(() => {});
     }
     return () => {
       if (!open) stopScanner();
@@ -111,9 +110,7 @@ export function IssueTicketPopover({ eventId, children }: Props) {
       setLastTicketId(r.ticket.ticket_id);
       setPhase("success");
       router.refresh();
-      window.setTimeout(() => {
-        handleOpenChange(false);
-      }, 2000);
+      window.setTimeout(() => handleOpenChange(false), 2000);
       return;
     }
 
@@ -136,176 +133,179 @@ export function IssueTicketPopover({ eventId, children }: Props) {
   }, [payload]);
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger render={children} />
-      <PopoverContent
-        className="w-80 p-0 overflow-hidden border-none shadow-xl ring-1 ring-black/5 flex flex-col"
-        align="end"
-        sideOffset={8}
-      >
-        <div className="min-h-[290px] flex flex-col relative">
-          {phase === "scanning" && (
-            <div className="flex-1 flex flex-col animate-in fade-in duration-200">
-              <div className="p-4 pb-2">
-                <PopoverHeader>
-                  <PopoverTitle>Issue Ticket</PopoverTitle>
-                  <PopoverDescription>
-                    Scan the PhilSys National ID QR code with your camera.
-                  </PopoverDescription>
-                </PopoverHeader>
-              </div>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogPrimitive.Trigger
+        data-slot="dialog-trigger"
+        render={children}
+        onClick={() => handleOpenChange(true)}
+      />
 
-              <div className="relative mx-auto mb-2 rounded-lg overflow-hidden bg-black aspect-square w-[calc(100%-2rem)]">
-                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                <video
-                  id="qr-scanner-video"
-                  className="w-full h-full object-cover"
-                  muted
-                  playsInline
-                />
-                {/* scanning overlay */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="relative w-40 h-40">
-                    <span className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-white/80 rounded-tl" />
-                    <span className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-white/80 rounded-tr" />
-                    <span className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-white/80 rounded-bl" />
-                    <span className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-white/80 rounded-br" />
-                    <ScanLine className="absolute inset-0 m-auto h-4 w-4 text-white/60 animate-pulse" />
+      <DialogPortal>
+        <DialogOverlay className="bg-black/60 backdrop-blur-none supports-backdrop-filter:backdrop-blur-none" />
+        <DialogPrimitive.Popup
+          data-slot="dialog-content"
+          className={cn(
+            "fixed top-1/2 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2",
+            "rounded-xl bg-popover text-popover-foreground ring-1 ring-foreground/10 shadow-2xl",
+            "p-0 overflow-hidden",
+            "duration-150 outline-none",
+            "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
+            "data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
+          )}
+        >
+          <div className="min-h-[290px] flex flex-col">
+            {phase === "scanning" && (
+              <div className="flex-1 flex flex-col animate-in fade-in duration-200">
+                <div className="p-5 pb-3">
+                  <DialogHeader>
+                    <DialogTitle>Issue Ticket</DialogTitle>
+                    <DialogDescription>
+                      Scan the PhilSys National ID QR code with your camera.
+                    </DialogDescription>
+                  </DialogHeader>
+                </div>
+
+                <div className="relative mx-5 mb-3 rounded-lg overflow-hidden bg-black aspect-square">
+                  {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                  <video
+                    id="qr-scanner-video"
+                    className="w-full h-full object-cover"
+                    muted
+                    playsInline
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="relative w-44 h-44">
+                      <span className="absolute top-0 left-0 w-7 h-7 border-t-2 border-l-2 border-white/80 rounded-tl" />
+                      <span className="absolute top-0 right-0 w-7 h-7 border-t-2 border-r-2 border-white/80 rounded-tr" />
+                      <span className="absolute bottom-0 left-0 w-7 h-7 border-b-2 border-l-2 border-white/80 rounded-bl" />
+                      <span className="absolute bottom-0 right-0 w-7 h-7 border-b-2 border-r-2 border-white/80 rounded-br" />
+                      <ScanLine className="absolute inset-0 m-auto h-5 w-5 text-white/60 animate-pulse" />
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-center justify-center gap-1.5 pb-4 text-xs text-muted-foreground">
-                <Camera className="h-3 w-3" />
-                <span>Waiting for QR code…</span>
-              </div>
-
-              <div className="flex justify-end px-4 pb-4 mt-auto">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleOpenChange(false)}
-                  className="text-muted-foreground"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {phase === "confirm" && (
-            <div className="p-4 flex-1 flex flex-col animate-in fade-in duration-200">
-              <PopoverHeader className="mb-4">
-                <PopoverTitle>Confirm Payload</PopoverTitle>
-                <PopoverDescription>
-                  Review the scanned QR data before issuing the ticket.
-                </PopoverDescription>
-              </PopoverHeader>
-
-              <div className="flex-1 rounded-lg border border-input/50 bg-muted/20 px-3 py-2 overflow-auto max-h-[160px]">
-                <pre className="font-mono text-[10px] leading-relaxed whitespace-pre-wrap break-all text-foreground/80">
-                  {parsedPayload !== null
-                    ? JSON.stringify(parsedPayload, null, 2)
-                    : payload}
-                </pre>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 mt-auto">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={onRescan}
-                  className="text-muted-foreground"
-                >
-                  Rescan
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={onConfirm}
-                  className="shadow-xs"
-                >
-                  Issue Ticket
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {phase === "submitting" && (
-            <div className="flex-1 flex flex-col items-center justify-center py-12 px-6 animate-in fade-in zoom-in-95 duration-300">
-              <Loader2 className="h-8 w-8 animate-spin text-primary/60 mb-4" />
-              <p className="text-sm font-medium text-foreground">Issuing ticket…</p>
-              <p className="text-xs text-muted-foreground mt-1 text-center">
-                Verifying identity with Philsys National ID
-              </p>
-            </div>
-          )}
-
-          {phase === "success" && (
-            <div className="flex-1 flex flex-col items-center justify-center py-12 px-6 animate-in fade-in zoom-in-95 duration-300">
-              <div className="h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center mb-4">
-                <CheckCircle2 className="h-6 w-6 text-emerald-600" />
-              </div>
-              <p className="text-sm font-medium text-foreground text-center">
-                Ticket issued successfully!
-              </p>
-              {lastTicketId && (
-                <p className="text-[10px] font-mono text-muted-foreground mt-2 bg-muted/50 px-2 py-1 rounded">
-                  ID: {lastTicketId.slice(0, 8)}…
-                </p>
-              )}
-            </div>
-          )}
-
-          {phase === "error" && (
-            <div className="p-4 flex-1 flex flex-col animate-in fade-in duration-200">
-              <PopoverHeader className="mb-4">
-                <PopoverTitle>Issue Ticket</PopoverTitle>
-                <PopoverDescription>
-                  Review the scanned QR data before issuing the ticket.
-                </PopoverDescription>
-              </PopoverHeader>
-
-              <div className="flex-1 rounded-lg border border-input/50 bg-muted/20 px-3 py-2 overflow-auto max-h-[100px]">
-                <pre className="font-mono text-[10px] leading-relaxed whitespace-pre-wrap break-all text-foreground/80">
-                  {parsedPayload !== null
-                    ? JSON.stringify(parsedPayload, null, 2)
-                    : payload}
-                </pre>
-              </div>
-
-              {errorCode && (
-                <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/5 p-2.5 rounded-lg border border-destructive/10 animate-in fade-in slide-in-from-top-1 duration-200 mt-3">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                  <p>{messageForIssueError(errorCode)}</p>
+                <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+                  <Camera className="h-3 w-3" />
+                  <span>Waiting for QR code…</span>
                 </div>
-              )}
 
-              <div className="flex justify-end gap-2 pt-3 mt-auto">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={onRescan}
-                  className="text-muted-foreground"
-                >
-                  Rescan
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={onConfirm}
-                  className="shadow-xs"
-                >
-                  Retry
-                </Button>
+                <div className="flex justify-end px-5 py-4 mt-auto">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleOpenChange(false)}
+                    className="text-muted-foreground"
+                  >
+                    Cancel
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+            )}
+
+            {phase === "confirm" && (
+              <div className="p-5 flex-1 flex flex-col animate-in fade-in duration-200">
+                <DialogHeader className="mb-4">
+                  <DialogTitle>Confirm Payload</DialogTitle>
+                  <DialogDescription>
+                    Review the scanned QR data before issuing the ticket.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="flex-1 rounded-lg border border-input/50 bg-muted/20 px-3 py-2 overflow-auto max-h-[200px]">
+                  <pre className="font-mono text-[10px] leading-relaxed whitespace-pre-wrap break-all text-foreground/80">
+                    {parsedPayload !== null
+                      ? JSON.stringify(parsedPayload, null, 2)
+                      : payload}
+                  </pre>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4 mt-auto">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={onRescan}
+                    className="text-muted-foreground"
+                  >
+                    Rescan
+                  </Button>
+                  <Button type="button" size="sm" onClick={onConfirm} className="shadow-xs">
+                    Issue Ticket
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {phase === "submitting" && (
+              <div className="flex-1 flex flex-col items-center justify-center py-16 px-6 animate-in fade-in zoom-in-95 duration-300">
+                <Loader2 className="h-8 w-8 animate-spin text-primary/60 mb-4" />
+                <p className="text-sm font-medium text-foreground">Issuing ticket…</p>
+                <p className="text-xs text-muted-foreground mt-1 text-center">
+                  Verifying identity with Philsys National ID
+                </p>
+              </div>
+            )}
+
+            {phase === "success" && (
+              <div className="flex-1 flex flex-col items-center justify-center py-16 px-6 animate-in fade-in zoom-in-95 duration-300">
+                <div className="h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center mb-4">
+                  <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+                </div>
+                <p className="text-sm font-medium text-foreground text-center">
+                  Ticket issued successfully!
+                </p>
+                {lastTicketId && (
+                  <p className="text-[10px] font-mono text-muted-foreground mt-2 bg-muted/50 px-2 py-1 rounded">
+                    ID: {lastTicketId.slice(0, 8)}…
+                  </p>
+                )}
+              </div>
+            )}
+
+            {phase === "error" && (
+              <div className="p-5 flex-1 flex flex-col animate-in fade-in duration-200">
+                <DialogHeader className="mb-4">
+                  <DialogTitle>Issue Ticket</DialogTitle>
+                  <DialogDescription>
+                    Review the scanned QR data before issuing the ticket.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="flex-1 rounded-lg border border-input/50 bg-muted/20 px-3 py-2 overflow-auto max-h-[120px]">
+                  <pre className="font-mono text-[10px] leading-relaxed whitespace-pre-wrap break-all text-foreground/80">
+                    {parsedPayload !== null
+                      ? JSON.stringify(parsedPayload, null, 2)
+                      : payload}
+                  </pre>
+                </div>
+
+                {errorCode && (
+                  <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/5 p-2.5 rounded-lg border border-destructive/10 animate-in fade-in slide-in-from-top-1 duration-200 mt-3">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <p>{messageForIssueError(errorCode)}</p>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 pt-4 mt-auto">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={onRescan}
+                    className="text-muted-foreground"
+                  >
+                    Rescan
+                  </Button>
+                  <Button type="button" size="sm" onClick={onConfirm} className="shadow-xs">
+                    Retry
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogPrimitive.Popup>
+      </DialogPortal>
+    </Dialog>
   );
 }
