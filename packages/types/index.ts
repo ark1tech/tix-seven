@@ -101,3 +101,34 @@ export interface IssuedTicket {
   status: "UNUSED";
   created_at: string;
 }
+
+/** PhilSys National ID QR payload (scanned data). */
+export interface PhilsysPayload {
+  uin: string;
+  name: string;
+  dob: string;
+  location1: string;
+  location3: string;
+  zone: string;
+  postal_code: string;
+  address_line1: string;
+  address_line2: string;
+  address_line3: string;
+}
+
+/** UI metadata for rendering PhilSys payload fields. */
+export const PHILSYS_PAYLOAD_FIELDS: Array<{
+  key: keyof PhilsysPayload;
+  label: string;
+}> = [
+  { key: "uin", label: "UIN" },
+  { key: "name", label: "Full Name" },
+  { key: "dob", label: "Date of Birth" },
+  { key: "location1", label: "City/Province" },
+  { key: "location3", label: "District/Region" },
+  { key: "zone", label: "Zone" },
+  { key: "postal_code", label: "Postal Code" },
+  { key: "address_line1", label: "Address Line 1" },
+  { key: "address_line2", label: "Address Line 2" },
+  { key: "address_line3", label: "Address Line 3" },
+];
