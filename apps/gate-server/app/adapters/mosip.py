@@ -24,7 +24,15 @@ _MOSIP_CREDENTIAL_FILES = (
     "keystore-signed.p12",
 )
 _auth_log = logging.getLogger("authenticator.log")
-_MOSIP_REQUEST_TIMEOUT_SECONDS = 60
+def _read_timeout_seconds() -> int:
+    raw = os.getenv("MOSIP_REQUEST_TIMEOUT_SECONDS", "120")
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return 120
+
+
+_MOSIP_REQUEST_TIMEOUT_SECONDS = _read_timeout_seconds()
 
 
 def _with_default_timeout(

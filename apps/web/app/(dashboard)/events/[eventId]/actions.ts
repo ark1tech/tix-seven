@@ -30,6 +30,12 @@ export async function issueTicketAction(eventId: string, qrPayload: string) {
     );
     return { ok: false as const, error: "unauthorized" as const };
   }
+  console.info(
+    "[ticket-issue] web auth_user trace_id=%s event_id=%s user_id=%s",
+    traceId,
+    eventId,
+    user.id,
+  );
 
   const {
     data: { session },
@@ -43,6 +49,12 @@ export async function issueTicketAction(eventId: string, qrPayload: string) {
     );
     return { ok: false as const, error: "unauthorized" as const };
   }
+  console.info(
+    "[ticket-issue] web auth_token trace_id=%s event_id=%s token_len=%s",
+    traceId,
+    eventId,
+    accessToken.length,
+  );
 
   const result = await issueTicket(accessToken, eventId, qrPayload, traceId);
   if (result.ok) {

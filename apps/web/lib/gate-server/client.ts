@@ -55,11 +55,27 @@ export async function issueTicket(
       },
       body: JSON.stringify({ qr_payload: qrPayload, event_id: eventId }),
     });
-  } catch {
+  } catch (e) {
+    const err = e as Error & { cause?: unknown };
+    const cause = err?.cause ? String(err.cause) : "-";
     console.error(
-      "[ticket-issue] web->gate transport_error trace_id=%s route=/dashboard/tickets/issue",
+      "[ticket-issue] web->gate transport_error trace_id=%s route=/dashboard/tickets/issue error=%s cause=%s",
       traceId,
+      String(e),
+      cause,
     );
+    if (err?.stack) {
+      console.error("[ticket-issue] web->gate transport_error stack=%s", err.stack);
+    }
+    if (err?.cause && err.cause instanceof AggregateError) {
+      const causes = (err.cause as AggregateError).errors ?? [];
+      for (const c of causes) {
+        console.error(
+          "[ticket-issue] web->gate transport_error cause_detail=%s",
+          String(c),
+        );
+      }
+    }
     return { ok: false, error: "internal_server_error" };
   }
   console.info(

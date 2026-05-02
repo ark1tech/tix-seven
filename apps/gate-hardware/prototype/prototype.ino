@@ -6,11 +6,11 @@
 #include <Servo.h>
 
 // --- Configuration ---
-const char* ssid = "5PLDT";
-const char* password = "Straw1berry!";
+const char* ssid = "Denzell Dy";
+const char* password = "coaster12";
 
 // Server Details
-const char* serverUrl = "http://192.168.50.143:8000/verify"; // Replace with server's IP
+const char* serverUrl = "http://65.1.42.4:8000/verify"; // Replace with server's IP
 const char* apiKey = "64ca232bb34d5786219670dcb032dc8def1096de71b7c12c85fba03a02a7377e";                      // Must match GATE_API_KEY
 const String gateId = "04adee71-453f-4fff-b5ba-e2b7c4046ced";
 
