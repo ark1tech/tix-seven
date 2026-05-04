@@ -56,7 +56,7 @@ class VerificationService:
             context = self._verify_identity(context)         # Phase 2, Steps 2-3
             context = self._resolve_ticket(context)          # Phase 2, Steps 4-5
             context = self._grant(context)                   # Phase 2, Step 6
-            
+
             self._write_log(context)
             self.db.commit()
 
@@ -64,12 +64,8 @@ class VerificationService:
             # Controlled Denial: result and denial_reason are already set
             self.db.rollback()
 
-            self._write_log(context)
-
-            self.db.commit()
-
         except Exception:
-            # Unhandled Error: log at ERROR level and return a safe deny
+            # Unhandled Error: log at ERROR level and return a safe denial
             logger.exception(
                 "verify unhandled error: gate_id=%s",
                 context.gate_id,
@@ -88,9 +84,8 @@ class VerificationService:
 
             self.db.rollback()
 
-            self._write_log(context)
-
-            self.db.commit()
+        self._write_log(context)
+        self.db.commit()
 
         assert context.response is not None
 
@@ -118,6 +113,8 @@ class VerificationService:
             # Malformed gate_id is a system or a configuration fault
             return self._deny(ctx, DenialReasonEnum.INVALID_GATE_ID)
 
+        ctx.gate_uuid = gate_uuid
+    
         gate = self.gates.get_by_id(gate_uuid)
 
         if gate is None:
@@ -265,23 +262,28 @@ class VerificationService:
         ctx.denial_reason = reason
         ctx.response = VerifyResponse(result="deny", reason=reason)
 
+        logger.warning(
+            "verify denied: gate_id=%s event_id=%s reason=%s",
+            ctx.gate_id,
+            ctx.event_id,
+            reason.value,
+        )
+
         raise _DenySignal(reason)
 
     def _write_log(self, ctx: VerifyContext) -> None:
         """
         Write a log for this scan attempt. Always called regardless of outcome.
 
-        gate_id may be null if raw parsing failed.
+        gate_uuid may be None if the raw gate_id failed to parse.
         """
 
         assert ctx.result is not None
 
-        gate_uuid = parse_uuid(ctx.gate_id)
-
         self.db.add(
             Log(
                 raw_gate_id_snapshot=ctx.gate_id,
-                gate_id=gate_uuid,
+                gate_id=ctx.gate_uuid,
                 gate_location_snapshot=ctx.gate_location_snapshot,
                 event_id=ctx.event_id,
                 event_name_snapshot=ctx.event_name_snapshot,

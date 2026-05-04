@@ -1,10 +1,10 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, exists
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.event import Event
-
+from app.models.gate_assignment import GateAssignment
 
 class EventRepository:
     def __init__(self, db: Session) -> None:
@@ -32,3 +32,12 @@ class EventRepository:
                 .order_by(Event.start_time)  # Arbitrary
             ).all()
         )
+    
+    def has_gate_assignments(self, event_id: uuid.UUID) -> bool:
+        """
+        Returns True if the event has any gates assigned to it, False otherwise.
+        """
+
+        return bool(self.db.scalar(select(
+            exists().where(GateAssignment.event_id == event_id)
+        )))

@@ -36,6 +36,7 @@ class VerifyContext(BaseModel):
     qr_payload: str
     gate_id: str
 
+    gate_uuid: Optional[uuid.UUID] = None
     event_id: Optional[uuid.UUID] = None
     event_name_snapshot: Optional[str] = None
     assignment_id: Optional[uuid.UUID] = None

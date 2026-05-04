@@ -17,7 +17,7 @@ from app.services.identity import IdentityService
 logger = logging.getLogger(__name__)
 
 
-class _IssueError(Exception):
+class IssueError(Exception):
     """
     Internal sentinel raised by _abort() to unwind the issuance pipeline.
 
@@ -49,8 +49,6 @@ class IssuanceService:
         Entry point. Runs the server-side issuance pipeline (Phase 0) and returns a confirmation on success.
         """
 
-        from fastapi import HTTPException  # A local import to keep layer clean
-
         trace_id = get_trace_id()
 
         logger.info(
@@ -62,13 +60,9 @@ class IssuanceService:
 
         context = self._init_context(qr_payload, event_id)
 
-        try:
-            context = self._resolve_event(context)    # Phase 0, Extra
-            context = self._verify_identity(context)  # Phase 0, Steps 3-4
-            context = self._create_ticket(context)    # Phase 0, Step 5
-
-        except _IssueError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+        context = self._resolve_event(context)    # Phase 0, Extra
+        context = self._verify_identity(context)  # Phase 0, Steps 3-4
+        context = self._create_ticket(context)    # Phase 0, Step 5
 
         assert context.ticket_id is not None
         assert context.link_id is not None
@@ -103,8 +97,7 @@ class IssuanceService:
 
         if event is None:
             logger.warning(
-                "issue failed: reason=event_not_found status_code=404 "
-                "trace_id=%s event_id=%s",
+                "issue denied: trace_id=%s event_id=%s reason=EVENT_NOT_FOUND",
                 get_trace_id(),
                 ctx.event_id,
             )
@@ -113,8 +106,7 @@ class IssuanceService:
 
         if event.status not in (EventStatusEnum.SCHEDULED, EventStatusEnum.ACTIVE):
             logger.warning(
-                "issue failed: reason=event_not_accepting_tickets status_code=409 "
-                "trace_id=%s event_id=%s event_status=%s",
+                "issue denied: trace_id=%s event_id=%s reason=EVENT_NOT_ACCEPTING_TICKETS event_status=%s",
                 get_trace_id(),
                 ctx.event_id,
                 event.status.value,
@@ -138,8 +130,7 @@ class IssuanceService:
 
         except MOSIPUnavailableError:
             logger.error(
-                "issue failed: reason=mosip_unavailable status_code=503 "
-                "trace_id=%s event_id=%s",
+                "issue error: trace_id=%s event_id=%s reason=MOSIP_UNAVAILABLE",
                 get_trace_id(),
                 ctx.event_id,
             )
@@ -148,8 +139,7 @@ class IssuanceService:
 
         if verified is None:
             logger.warning(
-                "issue failed: reason=identity_not_verified status_code=400 "
-                "trace_id=%s event_id=%s",
+                "issue denied: trace_id=%s event_id=%s reason=IDENTITY_NOT_VERIFIED",
                 get_trace_id(),
                 ctx.event_id,
             )
@@ -192,8 +182,7 @@ class IssuanceService:
             # The expected IntegrityError at the link stage is a duplicate link_hash
             if constraint and "link_hash" in constraint:
                 logger.warning(
-                    "issue failed: reason=ticket_already_issued status_code=409 "
-                    "trace_id=%s event_id=%s constraint=%s",
+                    "issue denied: trace_id=%s event_id=%s reason=TICKET_ALREADY_ISSUED constraint=%s",
                     get_trace_id(),
                     ctx.event_id,
                     constraint,
@@ -201,14 +190,13 @@ class IssuanceService:
 
                 return self._abort(409, "ticket_already_issued")
 
-            # Any other IntegrityError is unexpected and treated as a server error
             logger.error(
-                "issue failed: reason=persistence_failed status_code=500 "
-                "trace_id=%s event_id=%s constraint=%s error_type=%s error=%s",
+                "issue error: trace_id=%s event_id=%s reason=PERSISTENCE_FAILED "
+                "error_type=%s constraint=%s error=%s",
                 get_trace_id(),
                 ctx.event_id,
-                constraint,
                 type(exc).__name__,
+                constraint,
                 short_error_message(exc),
             )
 
@@ -218,8 +206,8 @@ class IssuanceService:
             self.db.rollback()
 
             logger.error(
-                "issue failed: reason=persistence_failed status_code=500 "
-                "trace_id=%s event_id=%s error_type=%s error=%s",
+                "issue error: trace_id=%s event_id=%s reason=PERSISTENCE_FAILED "
+                "error_type=%s error=%s",
                 get_trace_id(),
                 ctx.event_id,
                 type(exc).__name__,
@@ -248,7 +236,7 @@ class IssuanceService:
 
     def _abort(self, status_code: int, detail: str) -> IssueContext:
         """
-        Raise _IssueError to unwind the pipeline.
+        Raise IssueError to unwind the pipeline.
         """
 
-        raise _IssueError(status_code=status_code, detail=detail)
+        raise IssueError(status_code=status_code, detail=detail)

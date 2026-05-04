@@ -57,9 +57,6 @@ class DenialReasonEnum(str, enum.Enum):
     # Phase 2, Step 5: No EventTicketLink exists for the computed link_hash
     LINK_NOT_FOUND = "LINK_NOT_FOUND"
 
-    # Link resolves to a different event than the current gate assignment
-    WRONG_EVENT = "WRONG_EVENT"  # Paul: Remove maybe
-
     # Phase 2, Step 6a: Ticket record is missing despite an existing valid link
     TICKET_NOT_FOUND = "TICKET_NOT_FOUND"
 

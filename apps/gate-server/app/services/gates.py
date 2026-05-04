@@ -57,8 +57,7 @@ class GateService:
     def _assert_venue_exists(self, venue_id: uuid.UUID) -> None:
         if not self.venues.exists(venue_id):
             logger.warning(
-                "gate operation failed: reason=venue_not_found status_code=404 "
-                "trace_id=%s venue_id=%s",
+                "event operation failed: trace_id=%s venue_id=%s reason=VENUE_NOT_FOUND",
                 get_trace_id(),
                 venue_id,
             )
@@ -103,7 +102,7 @@ class GateService:
 
         if event.status not in _ASSIGNABLE_EVENT_STATUSES:
             logger.warning(
-                "gate operation failed: reason=event_not_assignable status_code=409 "
+                "gate operation failed: reason=EVENT_NOT_ASSIGNABLE status_code=409 "
                 "trace_id=%s event_id=%s event_status=%s",
                 get_trace_id(),
                 event_id,
@@ -123,13 +122,13 @@ class GateService:
 
         if gate.status == GateStatusEnum.ONLINE:
             logger.warning(
-                "gate operation failed: reason=gate_online status_code=409 "
+                "gate operation failed: reason=GATE_ONLINE status_code=409 "
                 "trace_id=%s gate_id=%s",
                 get_trace_id(),
                 gate.gate_id,
             )
 
-            raise HTTPException(status_code=409, detail="gate_must_be_offline")
+            raise HTTPException(status_code=409, detail="gate_online")
 
     def _deactivate_and_reassign(
         self,
@@ -186,7 +185,7 @@ class GateService:
             # The gate must belong to the same venue as the event it is assigned to
             if event.venue_id != body.venue_id:
                 logger.warning(
-                    "gate create failed: reason=venue_mismatch status_code=409 "
+                    "gate create failed: reason=VENUE_MISMATCH status_code=409 "
                     "trace_id=%s gate_venue_id=%s event_venue_id=%s",
                     trace_id,
                     body.venue_id,
@@ -294,13 +293,13 @@ class GateService:
         # Block deletion of gates that are ONLINE as they may be mid-scan
         if gate.status == GateStatusEnum.ONLINE:
             logger.warning(
-                "gate delete failed: reason=gate_online status_code=409 "
+                "gate delete failed: reason=GATE_ONLINE status_code=409 "
                 "trace_id=%s gate_id=%s",
                 trace_id,
                 gate_id,
             )
 
-            raise HTTPException(status_code=409, detail="gate_must_be_offline")
+            raise HTTPException(status_code=409, detail="gate_online")
 
         gate_assignment = self.gates.get_active_assignment(gate_id)
 
@@ -309,7 +308,7 @@ class GateService:
         # The gate should be explicitly unassigned before deletion
         if gate_assignment is not None:
             logger.warning(
-                "gate delete failed: reason=gate_has_active_assignment status_code=409 "
+                "gate delete failed: reason=GATE_HAS_ACTIVE_ASSIGNMENT status_code=409 "
                 "trace_id=%s gate_id=%s",
                 trace_id,
                 gate_id,
@@ -325,7 +324,7 @@ class GateService:
             self.db.rollback()
 
             logger.warning(
-                "gate delete failed: reason=gate_has_dependents status_code=409 "
+                "gate delete failed: reason=GATE_HAS_DEPENDENTS status_code=409 "
                 "trace_id=%s gate_id=%s",
                 trace_id,
                 gate_id,

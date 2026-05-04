@@ -2,14 +2,12 @@ import logging
 import uuid
 
 from fastapi import HTTPException
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.trace import get_trace_id
 from app.models.enums import EventStatusEnum
 from app.models.event import Event
-from app.models.gate_assignment import GateAssignment
 from app.models.schemas import (
     EventCreateRequest,
     EventResponse,
@@ -64,8 +62,7 @@ class EventService:
     def _assert_venue_exists(self, venue_id: uuid.UUID) -> None:
         if not self.venues.exists(venue_id):
             logger.warning(
-                "event operation failed: reason=venue_not_found status_code=404 "
-                "trace_id=%s venue_id=%s",
+                "event operation failed: trace_id=%s venue_id=%s reason=VENUE_NOT_FOUND",
                 get_trace_id(),
                 venue_id,
             )
@@ -81,11 +78,10 @@ class EventService:
 
         if event.status in (EventStatusEnum.CONCLUDED, EventStatusEnum.CANCELLED):
             logger.warning(
-                "event operation failed: reason=event_%s status_code=409 "
-                "trace_id=%s event_id=%s",
-                event.status.value.lower(),
+                "event update failed: trace_id=%s event_id=%s reason=EVENT_%s",
                 get_trace_id(),
                 event.event_id,
+                event.status.value,
             )
 
             raise HTTPException(
@@ -103,16 +99,9 @@ class EventService:
         Even inactive assignments indicate that gates from the original venue were historically linked to this event.
         """
 
-        has_assignments = self.db.scalar(
-            select(GateAssignment.assignment_id)
-            .where(GateAssignment.event_id == event_id)
-            .limit(1)
-        )
-
-        if has_assignments is not None:
+        if self.events.has_gate_assignments(event_id):
             logger.warning(
-                "event venue update failed: reason=event_has_gate_assignments "
-                "status_code=409 trace_id=%s event_id=%s",
+                "event update failed: trace_id=%s event_id=%s reason=EVENT_HAS_GATE_ASSIGNMENTS",
                 get_trace_id(),
                 event_id,
             )
@@ -220,8 +209,7 @@ class EventService:
             self.db.rollback()
 
             logger.warning(
-                "event update failed: reason=invalid_time_range status_code=422 "
-                "trace_id=%s event_id=%s",
+                "event update failed: trace_id=%s event_id=%s reason=END_TIME_BEFORE_START_TIME",
                 trace_id,
                 event_id,
             )
@@ -267,9 +255,8 @@ class EventService:
 
         if body.status not in allowed:
             logger.warning(
-                "event status transition failed: reason=invalid_transition "
-                "status_code=409 trace_id=%s event_id=%s "
-                "current_status=%s target_status=%s",
+                "event status transition failed: trace_id=%s event_id=%s "
+                "reason=INVALID_STATUS_TRANSITION current_status=%s target_status=%s",
                 trace_id,
                 event_id,
                 event.status.value,
@@ -317,8 +304,7 @@ class EventService:
 
         if event.status not in (EventStatusEnum.SCHEDULED, EventStatusEnum.CANCELLED):
             logger.warning(
-                "event delete failed: reason=event_not_deletable status_code=409 "
-                "trace_id=%s event_id=%s status=%s",
+                "event delete failed: trace_id=%s event_id=%s reason=EVENT_%s",
                 trace_id,
                 event_id,
                 event.status.value,
@@ -337,8 +323,7 @@ class EventService:
             self.db.rollback()
 
             logger.warning(
-                "event delete failed: reason=event_has_dependents status_code=409 "
-                "trace_id=%s event_id=%s",
+                "event delete failed: trace_id=%s event_id=%s reason=EVENT_HAS_DEPENDENTS",
                 trace_id,
                 event_id,
             )
