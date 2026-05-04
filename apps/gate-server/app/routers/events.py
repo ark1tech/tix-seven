@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 import uuid
 
 from fastapi import APIRouter, Depends, status
@@ -26,7 +27,7 @@ def get_event_service(db: Session = Depends(get_db)) -> EventService:
 def create_event(
     body: EventCreateRequest,
     _: str = Depends(require_internal_api_key),
-    __: dict = Depends(require_supabase_jwt),
+    __: dict[str, Any] = Depends(require_supabase_jwt),
     service: EventService = Depends(get_event_service),
 ) -> EventResponse:
     logger.info(
@@ -46,7 +47,7 @@ def update_event(
     event_id: uuid.UUID,
     body: EventUpdateRequest,
     _: str = Depends(require_internal_api_key),
-    __: dict = Depends(require_supabase_jwt),
+    __: dict[str, Any] = Depends(require_supabase_jwt),
     service: EventService = Depends(get_event_service),
 ) -> EventResponse:
     logger.info(
