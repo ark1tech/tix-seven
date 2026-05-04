@@ -7,7 +7,7 @@ export type IssueError =
   | "mosip_unavailable"
   | "identity_not_verified"
   | "event_not_found"
-  | "already_issued"
+  | "ticket_already_issued"
   | "internal_server_error";
 
 export type IssueTicketResult =
@@ -128,11 +128,9 @@ export async function issueTicket(
   if (res.status === 404 && detail === "event_not_found") {
     return { ok: false, error: "event_not_found" };
   }
-  if (
-    res.status === 409 &&
-    (detail === "already_issued" || detail === "ticket_already_issued")
-  ) {
-    return { ok: false, error: "already_issued" };
+  if (res.status === 409 && detail === "ticket_already_issued")
+  {
+    return { ok: false, error: "ticket_already_issued" };
   }
   if (res.status === 500 && detail === "internal_server_error") {
     return { ok: false, error: "internal_server_error" };

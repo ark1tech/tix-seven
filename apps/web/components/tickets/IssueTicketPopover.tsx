@@ -29,7 +29,7 @@ const errorMessages: Record<IssueError, string> = {
     "Identity checking is temporarily unavailable. Try again in a few minutes.",
   identity_not_verified: "The QR is invalid. Please try again.",
   event_not_found: "This event was not found. Refresh the page and try again.",
-  already_issued: "A ticket for this identity already exists for this event.",
+  ticket_already_issued: "A ticket for this identity already exists for this event.",
   internal_server_error:
     "Something went wrong on the server. Try again in a moment.",
 };
