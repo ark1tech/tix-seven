@@ -44,7 +44,7 @@ class IssuanceService:
         self.events = events or EventRepository(db)
         self.tickets = tickets or TicketRepository(db)
 
-    def issue(self, qr_payload: str, event_id: uuid.UUID) -> IssueResponse:
+    def issue(self, qr_payload: str, event_id: uuid.UUID, stub_mosip: bool = False) -> IssueResponse:
         """
         Entry point. Runs the server-side issuance pipeline (Phase 0) and returns a confirmation on success.
         """
@@ -58,7 +58,7 @@ class IssuanceService:
             len(qr_payload.encode("utf-8")),
         )
 
-        context = self._init_context(qr_payload, event_id)
+        context = self._init_context(qr_payload, event_id, stub_mosip)
 
         context = self._resolve_event(context)    # Phase 0, Extra
         context = self._verify_identity(context)  # Phase 0, Steps 3-4
@@ -76,10 +76,11 @@ class IssuanceService:
         )
 
     # Context initialization
-    def _init_context(self, qr_payload: str, event_id: uuid.UUID) -> IssueContext:
+    def _init_context(self, qr_payload: str, event_id: uuid.UUID, stub_mosip: bool = False) -> IssueContext:
         return IssueContext(
             qr_payload=qr_payload,
             event_id=event_id,
+            stub_mosip=stub_mosip,
         )
 
     # ------------------------------------------------------------------
@@ -125,8 +126,16 @@ class IssuanceService:
         Forward the QR payload to MOSIP. On success, store the PSUT and compute the link_hash that will bind this identity to the event.
         """
 
+        identity_svc = self.identity
+
+        if getattr(ctx, "stub_mosip", False):
+            from app.adapters.mosip import StubMOSIPAdapter
+            from app.services.identity import IdentityService
+            logger.info("stubbing mosip verification for trace_id=%s", get_trace_id())
+            identity_svc = IdentityService(mosip=StubMOSIPAdapter())
+
         try:
-            verified = self.identity.verify(ctx.qr_payload)
+            verified = identity_svc.verify(ctx.qr_payload)
 
         except MOSIPUnavailableError:
             logger.error(
@@ -149,7 +158,7 @@ class IssuanceService:
         ctx.uin = verified.uin
         ctx.psut = verified.psut
 
-        ctx.link_hash = self.identity.compute_link_hash(ctx.psut, ctx.event_id)
+        ctx.link_hash = identity_svc.compute_link_hash(ctx.psut, ctx.event_id)
 
         return ctx
 
@@ -217,11 +226,12 @@ class IssuanceService:
             return self._abort(500, "internal_server_error")
 
         logger.info(
-            "issue succeeded: trace_id=%s event_id=%s ticket_id=%s link_id=%s",
+            "issue succeeded: trace_id=%s event_id=%s ticket_id=%s link_id=%s stubbed=%s",
             get_trace_id(),
             ctx.event_id,
             ticket.ticket_id,
             link.link_id,
+            ctx.stub_mosip,
         )
 
         ctx.link_id = link.link_id

@@ -35,20 +35,21 @@ export async function getAssignedGatesAction(eventId: string): Promise<Gate[]> {
   }));
 }
 
-export async function mockScanAction(gateId: string, qrPayload: string, eventId: string) {
+export async function mockScanAction(gateId: string, qrPayload: string, eventId: string, stubMosip: boolean = false) {
   if (process.env.NEXT_PUBLIC_DEBUG_TOOLS !== "true") {
     return { ok: false as const, error: "debug_tools_disabled" };
   }
 
   const traceId = randomUUID();
   console.info(
-    "[mock-scan] browser->web ingress trace_id=%s gate_id=%s payload_len=%s",
+    "[mock-scan] browser->web ingress trace_id=%s gate_id=%s payload_len=%s stubbed=%s",
     traceId,
     gateId,
     qrPayload.length,
+    stubMosip
   );
 
-  const result = await mockScan(gateId, qrPayload, traceId);
+  const result = await mockScan(gateId, qrPayload, traceId, stubMosip);
 
   if (result.ok) {
     console.info(

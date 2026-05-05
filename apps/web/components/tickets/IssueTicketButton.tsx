@@ -6,11 +6,12 @@ import { IssueTicketPopover } from "@/components/tickets/IssueTicketPopover";
 interface Props {
   eventId: string;
   disabled?: boolean;
+  stubMode?: boolean;
 }
 
-export function IssueTicketButton({ eventId, disabled }: Props) {
+export function IssueTicketButton({ eventId, disabled, stubMode }: Props) {
   return (
-    <IssueTicketPopover eventId={eventId}>
+    <IssueTicketPopover eventId={eventId} defaultStub={stubMode}>
       <Button
         type="button"
         variant="ghost"
@@ -18,7 +19,7 @@ export function IssueTicketButton({ eventId, disabled }: Props) {
         disabled={disabled}
         className="h-8 px-3 text-xs font-medium bg-primary/[0.08] text-primary border border-primary/10 hover:bg-primary/15 hover:text-primary transition-all duration-200 shadow-none gap-1.5 rounded-md focus-visible:ring-0 aria-expanded:bg-primary/20 aria-expanded:text-primary aria-expanded:border-primary/30 aria-expanded:shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary/[0.08]"
       >
-        Issue ticket
+        {stubMode ? "Issue ticket" : "Issue ticket"}
       </Button>
     </IssueTicketPopover>
   );

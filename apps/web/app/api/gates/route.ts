@@ -6,6 +6,7 @@ import { getGates } from "@/lib/db/gates";
 import { createGate } from "@/lib/gate-server/gates";
 
 const CreateGateSchema = z.object({
+  venue_id: z.string().uuid(),
   location: z.string().min(1),
   event_id: z.string().uuid().nullable().optional(),
 });
@@ -37,7 +38,11 @@ export async function POST(request: Request) {
   const traceId = randomUUID();
   const result = await createGate(
     accessToken,
-    { location: parsed.data.location, event_id: parsed.data.event_id ?? null },
+    { 
+      venue_id: parsed.data.venue_id,
+      location: parsed.data.location, 
+      event_id: parsed.data.event_id ?? null 
+    },
     traceId,
   );
   if (!result.ok) {

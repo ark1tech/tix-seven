@@ -12,6 +12,7 @@ class VerifyRequest(BaseModel):
 
     qr_payload: str
     gate_id: str
+    stub_mosip: Optional[bool] = False
 
 
 class VerifyResponse(BaseModel):
@@ -35,6 +36,7 @@ class VerifyContext(BaseModel):
 
     qr_payload: str
     gate_id: str
+    stub_mosip: bool = False
 
     gate_uuid: Optional[uuid.UUID] = None
     event_id: Optional[uuid.UUID] = None
@@ -73,6 +75,7 @@ class IssueRequest(BaseModel):
 
     qr_payload: str
     event_id: uuid.UUID
+    stub_mosip: Optional[bool] = False
 
 
 class IssueResponse(BaseModel):
@@ -97,6 +100,7 @@ class IssueContext(BaseModel):
 
     qr_payload: str
     event_id: uuid.UUID
+    stub_mosip: bool = False
 
     uin: Optional[str] = None
     psut: Optional[str] = None
@@ -200,6 +204,7 @@ class GateUpdateRequest(BaseModel):
 
     location: Optional[str] = None
     event_id: Optional[uuid.UUID] = None
+    status: Optional[GateStatusEnum] = None
 
 
 class GateResponse(BaseModel):

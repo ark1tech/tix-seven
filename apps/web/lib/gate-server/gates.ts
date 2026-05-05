@@ -52,7 +52,7 @@ function mapErrorResponse(
 
 export async function createGate(
   accessToken: string,
-  body: { location: string; event_id?: string | null },
+  body: { venue_id: string; location: string; event_id?: string | null },
   traceId: string,
 ): Promise<CreateGateResult> {
   const base = requireGateServerUrl().replace(/\/$/, "");
@@ -110,7 +110,7 @@ export async function createGate(
 export async function updateGate(
   accessToken: string,
   gateId: string,
-  body: Partial<{ location: string; event_id: string | null }>,
+  body: Partial<{ location: string; event_id: string | null; status: "ONLINE" | "OFFLINE" }>,
   traceId: string,
 ): Promise<UpdateGateResult> {
   const base = requireGateServerUrl().replace(/\/$/, "");

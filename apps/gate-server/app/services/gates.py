@@ -239,6 +239,9 @@ class GateService:
         if "location" in fields and body.location is not None:
             gate.location = body.location
 
+        if "status" in fields and body.status is not None:
+            gate.status = body.status
+
         if "event_id" in fields:
             # body.event_id may be None, which means explicit unassign
 

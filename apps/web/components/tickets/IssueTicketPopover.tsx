@@ -41,6 +41,7 @@ function messageForIssueError(code: IssueError): string {
 interface Props {
   eventId: string;
   children: React.ReactElement;
+  defaultStub?: boolean;
 }
 
 function ScannedPayloadDisplay({ data }: { data: Partial<PhilsysPayload> }) {
@@ -109,7 +110,7 @@ function ScannedPayloadDisplay({ data }: { data: Partial<PhilsysPayload> }) {
   );
 }
 
-export function IssueTicketPopover({ eventId, children }: Props) {
+export function IssueTicketPopover({ eventId, children, defaultStub = false }: Props) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [phase, setPhase] = React.useState<Phase>("scanning");
@@ -124,17 +125,6 @@ export function IssueTicketPopover({ eventId, children }: Props) {
     scannerRef.current?.stop();
     scannerRef.current = null;
   }, []);
-
-  const startScanner = React.useCallback(async () => {
-    const { CameraAdapter } = await import("@/lib/qr-scanner/camera-adapter");
-    const adapter = new CameraAdapter();
-    scannerRef.current = adapter;
-    await adapter.start((decoded) => {
-      stopScanner();
-      setPayload(decoded);
-      setPhase("confirm");
-    });
-  }, [stopScanner]);
 
   const resetForm = React.useCallback(() => {
     stopScanner();
@@ -163,22 +153,40 @@ export function IssueTicketPopover({ eventId, children }: Props) {
   );
 
   React.useEffect(() => {
-    if (open && phase === "scanning") {
-      startScanner().catch(() => { });
-    }
-    return () => {
-      if (!open) stopScanner();
-    };
-  }, [open, phase, startScanner, stopScanner]);
+    let active = true;
 
-  async function onConfirm() {
+    if (open && phase === "scanning") {
+      import("@/lib/qr-scanner/camera-adapter").then(({ CameraAdapter }) => {
+        if (!active) return;
+        
+        stopScanner();
+        const adapter = new CameraAdapter();
+        scannerRef.current = adapter;
+        
+        adapter.start((decoded) => {
+          if (active) {
+            stopScanner();
+            setPayload(decoded);
+            setPhase("confirm");
+          }
+        }).catch(() => {});
+      });
+    }
+
+    return () => {
+      active = false;
+      stopScanner();
+    };
+  }, [open, phase, stopScanner]);
+
+  async function onConfirm(stub: boolean = false) {
     if (!payload.trim() || isSubmitting) return;
 
     setPhase("submitting");
     setErrorCode(null);
     setLastTicketId(null);
 
-    const r = await issueTicketAction(eventId, payload);
+    const r = await issueTicketAction(eventId, payload, stub);
 
     if (r.ok) {
       setLastTicketId(r.ticket.ticket_id);
@@ -316,7 +324,16 @@ export function IssueTicketPopover({ eventId, children }: Props) {
                   >
                     Rescan
                   </Button>
-                  <Button type="button" size="sm" onClick={onConfirm} className="shadow-xs">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onConfirm(true)}
+                    className="shadow-xs"
+                  >
+                    Stub MOSIP
+                  </Button>
+                  <Button type="button" size="sm" onClick={() => onConfirm(defaultStub)} className="shadow-xs">
                     Issue Ticket
                   </Button>
                 </div>
@@ -389,7 +406,16 @@ export function IssueTicketPopover({ eventId, children }: Props) {
                   >
                     Rescan
                   </Button>
-                  <Button type="button" size="sm" onClick={onConfirm} className="shadow-xs">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onConfirm(true)}
+                    className="shadow-xs"
+                  >
+                    Stub MOSIP
+                  </Button>
+                  <Button type="button" size="sm" onClick={() => onConfirm(defaultStub)} className="shadow-xs">
                     Retry
                   </Button>
                 </div>
