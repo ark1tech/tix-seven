@@ -1,32 +1,20 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronRight, ShieldCheck, ShieldAlert } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { IssueTicketButton } from "@/components/tickets/IssueTicketButton";
-import { MockScanButton } from "@/components/tickets/MockScanButton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { formatEventDateMediumPht, parsePhtEventTimestampToDate } from "@/lib/datetime-pht";
 import { cn } from "@/lib/utils";
 import type { Event } from "@tix-seven/types";
-import type { Gate } from "@/app/(dashboard)/events/[eventId]/mock-scan-action";
 
 interface Props {
   event: Event;
-  gates: Gate[];
 }
 
-export default function EventHeader({ event, gates }: Props) {
+export default function EventHeader({ event }: Props) {
   const pathname = usePathname();
-  const [stubMode, setStubMode] = useState(false);
   const rootPath = `/events/${event.event_id}`;
   const isRoot = pathname === rootPath;
   const isEntryLog = pathname.endsWith("/entry-log");
@@ -93,40 +81,11 @@ export default function EventHeader({ event, gates }: Props) {
                 Live Entry Log
               </Link>
 
-              <Select
-                value={stubMode ? "stub" : "live"}
-                onValueChange={(v) => setStubMode(v === "stub")}
-              >
-                <SelectTrigger className="text-[10px] font-bold uppercase tracking-wider bg-muted/30 border-dashed border-muted-foreground/20 hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center gap-1.5">
-                    {stubMode ? (
-                      <ShieldAlert className="h-3 w-3 text-amber-500" />
-                    ) : (
-                      <ShieldCheck className="h-3 w-3 text-emerald-500" />
-                    )}
-                    <SelectValue />
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="live" className="text-xs">
-                    Live MOSIP
-                  </SelectItem>
-                  <SelectItem value="stub" className="text-xs">
-                    Stub Identity
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-
               <IssueTicketButton 
                 eventId={event.event_id} 
-                disabled={isPastEvent} 
-                stubMode={stubMode} 
+                disabled={isPastEvent}
               />
-              <MockScanButton eventId={event.event_id} initialGates={gates} disabled={isPastEvent} stubMode={stubMode} />
             </>
-          )}
-          {isEntryLog && (
-            <MockScanButton eventId={event.event_id} initialGates={gates} stubMode={stubMode} />
           )}
         </div>
       </div>
