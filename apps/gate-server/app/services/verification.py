@@ -44,12 +44,12 @@ class VerificationService:
         self.events = events or EventRepository(db)
         self.tickets = tickets or TicketRepository(db)
 
-    def verify(self, qr_payload: str, gate_id: str) -> VerifyResponse:
+    def verify(self, qr_payload: str, gate_id: str, stub_mosip: bool = False) -> VerifyResponse:
         """
         Entry point. Runs the server-side validation pipeline (Phase 2) and writes a log row before returning.
         """
 
-        context = self._init_context(qr_payload, gate_id)
+        context = self._init_context(qr_payload, gate_id, stub_mosip)
 
         try:
             context = self._resolve_gate_and_event(context)  # Phase 2, Step 1
@@ -92,10 +92,11 @@ class VerificationService:
         return context.response
 
     # Context initialization
-    def _init_context(self, qr_payload: str, gate_id: str) -> VerifyContext:
+    def _init_context(self, qr_payload: str, gate_id: str, stub_mosip: bool) -> VerifyContext:
         return VerifyContext(
             qr_payload=qr_payload,
             gate_id=gate_id,
+            stub_mosip=stub_mosip,
         )
 
     # ------------------------------------------------------------------
@@ -164,8 +165,18 @@ class VerificationService:
         Forward the QR payload to MOSIP. On success, store the PSUT and compute the link_hash that will be used to look up the ticket.
         """
 
+        identity_svc = self.identity
+
+        if ctx.stub_mosip:
+            from app.adapters.mosip import StubMOSIPAdapter
+            from app.services.identity import IdentityService
+            from app.core.trace import get_trace_id
+            
+            logger.info("stubbing mosip verification for trace_id=%s", get_trace_id())
+            identity_svc = IdentityService(mosip=StubMOSIPAdapter())
+
         try:
-            verified = self.identity.verify(ctx.qr_payload)
+            verified = identity_svc.verify(ctx.qr_payload)
 
         except MOSIPUnavailableError:
             return self._deny(ctx, DenialReasonEnum.SERVER_TIMEOUT)
@@ -181,7 +192,7 @@ class VerificationService:
 
         assert ctx.event_id is not None
 
-        ctx.link_hash = self.identity.compute_link_hash(ctx.psut, ctx.event_id)
+        ctx.link_hash = identity_svc.compute_link_hash(ctx.psut, ctx.event_id)
 
         return ctx
 

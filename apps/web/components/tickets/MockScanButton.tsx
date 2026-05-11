@@ -9,15 +9,16 @@ interface Props {
   eventId: string;
   initialGates?: Gate[];
   disabled?: boolean;
+  stubMode?: boolean;
 }
 
-export function MockScanButton({ eventId, initialGates, disabled }: Props) {
+export function MockScanButton({ eventId, initialGates, disabled, stubMode }: Props) {
   if (process.env.NEXT_PUBLIC_DEBUG_TOOLS !== "true") {
     return null;
   }
 
   return (
-    <MockScanPopover eventId={eventId} initialGates={initialGates}>
+    <MockScanPopover eventId={eventId} initialGates={initialGates} stubMode={stubMode}>
       <Button
         type="button"
         variant="ghost"

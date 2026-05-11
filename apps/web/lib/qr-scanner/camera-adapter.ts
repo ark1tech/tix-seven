@@ -36,5 +36,15 @@ export class CameraAdapter implements QRScanner {
     this.controls?.stop();
     this.controls = null;
     this.reader = null;
+
+    const videoElement = document.getElementById(
+      "qr-scanner-video"
+    ) as HTMLVideoElement | null;
+
+    if (videoElement) {
+      videoElement.srcObject = null;
+      videoElement.removeAttribute("src");
+      videoElement.load();
+    }
   }
 }

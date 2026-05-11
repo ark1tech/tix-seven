@@ -19,4 +19,4 @@ def verify(
     _: str = Depends(require_gate_hardware_api_key),
     service: VerificationService = Depends(get_verification_service),
 ) -> VerifyResponse:
-    return service.verify(body.qr_payload, body.gate_id)
+    return service.verify(body.qr_payload, body.gate_id, body.stub_mosip)

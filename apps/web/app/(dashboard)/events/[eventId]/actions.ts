@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { issueTicket } from "@/lib/gate-server/client";
 import { createClient } from "@/lib/supabase/server";
 
-export async function issueTicketAction(eventId: string, qrPayload: string) {
+export async function issueTicketAction(eventId: string, qrPayload: string, stubMosip: boolean = false) {
   const traceId = randomUUID();
   const payloadBytes = new TextEncoder().encode(qrPayload).length;
   console.info(
@@ -56,7 +56,7 @@ export async function issueTicketAction(eventId: string, qrPayload: string) {
     accessToken.length,
   );
 
-  const result = await issueTicket(accessToken, eventId, qrPayload, traceId);
+  const result = await issueTicket(accessToken, eventId, qrPayload, traceId, stubMosip);
   if (result.ok) {
     console.info(
       "[ticket-issue] web->browser success trace_id=%s event_id=%s ticket_id=%s",

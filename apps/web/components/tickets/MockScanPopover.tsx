@@ -26,11 +26,12 @@ interface Props {
   eventId: string;
   children: React.ReactElement;
   initialGates?: Gate[];
+  stubMode?: boolean;
 }
 
 type Phase = "idle" | "loading_gates" | "submitting" | "success" | "error";
 
-export function MockScanPopover({ eventId, children, initialGates }: Props) {
+export function MockScanPopover({ eventId, children, initialGates, stubMode }: Props) {
   const [open, setOpen] = React.useState(false);
   const [gates, setGates] = React.useState<Gate[]>(initialGates || []);
   const [hasLoaded, setHasLoaded] = React.useState(initialGates !== undefined);
@@ -102,7 +103,7 @@ export function MockScanPopover({ eventId, children, initialGates }: Props) {
     setScanResult(null);
 
     if (!selectedGateId) return;
-    const r = await mockScanAction(selectedGateId, payload, eventId);
+    const r = await mockScanAction(selectedGateId, payload, eventId, stubMode);
 
     if (r.ok) {
       setScanResult({

@@ -31,6 +31,7 @@ export async function issueTicket(
   eventId: string,
   qrPayload: string,
   traceId: string,
+  stubMosip: boolean = false,
 ): Promise<IssueTicketResult> {
   const base = requireGateServerUrl().replace(/\/$/, "");
   const internalKey = resolveInternalApiKey();
@@ -53,7 +54,7 @@ export async function issueTicket(
         "X-Internal-Api-Key": internalKey,
         "X-Trace-Id": traceId,
       },
-      body: JSON.stringify({ qr_payload: qrPayload, event_id: eventId }),
+      body: JSON.stringify({ qr_payload: qrPayload, event_id: eventId, stub_mosip: stubMosip }),
     });
   } catch (e) {
     const err = e as Error & { cause?: unknown };
@@ -146,14 +147,16 @@ export async function mockScan(
   gateId: string,
   qrPayload: string,
   traceId: string,
+  stubMosip: boolean = false,
 ): Promise<MockScanResult> {
   const base = requireGateServerUrl().replace(/\/$/, "");
   const hardwareKey = resolveHardwareApiKey();
 
   console.info(
-    "[mock-scan] web->gate request trace_id=%s route=/verify gate_id=%s",
+    "[mock-scan] web->gate request trace_id=%s route=/verify gate_id=%s stubbed=%s",
     traceId,
     gateId,
+    stubMosip
   );
 
   let res: Response;
@@ -165,7 +168,7 @@ export async function mockScan(
         "X-Gate-Api-Key": hardwareKey,
         "X-Trace-Id": traceId,
       },
-      body: JSON.stringify({ qr_payload: qrPayload, gate_id: gateId }),
+      body: JSON.stringify({ qr_payload: qrPayload, gate_id: gateId, stub_mosip: stubMosip }),
     });
   } catch (e) {
     console.error(

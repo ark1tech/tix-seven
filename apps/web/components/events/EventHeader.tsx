@@ -5,18 +5,15 @@ import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { IssueTicketButton } from "@/components/tickets/IssueTicketButton";
-import { MockScanButton } from "@/components/tickets/MockScanButton";
 import { formatEventDateMediumPht, parsePhtEventTimestampToDate } from "@/lib/datetime-pht";
 import { cn } from "@/lib/utils";
 import type { Event } from "@tix-seven/types";
-import type { Gate } from "@/app/(dashboard)/events/[eventId]/mock-scan-action";
 
 interface Props {
   event: Event;
-  gates: Gate[];
 }
 
-export default function EventHeader({ event, gates }: Props) {
+export default function EventHeader({ event }: Props) {
   const pathname = usePathname();
   const rootPath = `/events/${event.event_id}`;
   const isRoot = pathname === rootPath;
@@ -68,7 +65,7 @@ export default function EventHeader({ event, gates }: Props) {
             {event.venue_name} · {formattedDate}
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex flex-row items-center gap-2 shrink-0">
           {isRoot && (
             <>
               <Link
@@ -83,12 +80,12 @@ export default function EventHeader({ event, gates }: Props) {
               >
                 Live Entry Log
               </Link>
-              <IssueTicketButton eventId={event.event_id} disabled={isPastEvent} />
-              <MockScanButton eventId={event.event_id} initialGates={gates} disabled={isPastEvent} />
+
+              <IssueTicketButton 
+                eventId={event.event_id} 
+                disabled={isPastEvent}
+              />
             </>
-          )}
-          {isEntryLog && (
-            <MockScanButton eventId={event.event_id} initialGates={gates} />
           )}
         </div>
       </div>

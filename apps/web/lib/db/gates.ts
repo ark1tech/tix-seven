@@ -31,3 +31,25 @@ export async function getGates(): Promise<Gate[]> {
     event_id: eventByGate.get(g.gate_id as string) ?? null,
   })) as Gate[];
 }
+
+export async function getGate(id: string): Promise<Gate> {
+  const supabase = await createClient();
+  const { data: gate, error } = await supabase
+    .from("gate")
+    .select(GATE_COLUMNS)
+    .eq("gate_id", id)
+    .single();
+  if (error) throw error;
+
+  const { data: assignment } = await supabase
+    .from("gate_assignment")
+    .select("event_id")
+    .eq("gate_id", id)
+    .eq("status", "ACTIVE")
+    .maybeSingle();
+
+  return {
+    ...gate,
+    event_id: assignment?.event_id ?? null,
+  } as Gate;
+}

@@ -1,6 +1,6 @@
-# TixSeven
+# TixSeven  
 
-A PhilSys National ID-powered event ticketing and gate verification system.
+A PhilSys National ID-powered event ticketing and gate verification system. 
 
 ## Architecture
 
@@ -165,14 +165,6 @@ Missing or invalid auth on gate-server should return **401** under the target co
 - FastAPI app with CORS, health endpoint, API key auth
 - DB migration + seed SQL
 - Gate server Dockerfile + Railway config
-
-### TODO
-
-- `apps/gate-server/app/services/verification.py` — DB queries inside `VerificationService`
-- `apps/gate-server/app/adapters/mosip.py` — replace `StubMOSIPAdapter` with real MOSIP SDK
-- Dashboard UI — fill component shells with actual Shadcn layouts
-- Sign-out server action in dashboard layout
-- Error boundaries and loading states on all pages
 
 ---
 

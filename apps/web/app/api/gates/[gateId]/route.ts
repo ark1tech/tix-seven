@@ -7,6 +7,7 @@ import { updateGate, deleteGate } from "@/lib/gate-server/gates";
 const UpdateGateSchema = z.object({
   location: z.string().min(1).optional(),
   event_id: z.string().uuid().nullable().optional(),
+  status: z.enum(["ONLINE", "OFFLINE"]).optional(),
 });
 
 export async function PATCH(
