@@ -5,6 +5,7 @@ import { phtEventTimestampZ } from "@/lib/datetime-pht";
 import { createClient } from "@/lib/supabase/server";
 import { getEvent } from "@/lib/db/events";
 import { updateEvent } from "@/lib/gate-server/events";
+import { isUuid } from "@/lib/uuid";
 
 const UpdateEventSchema = z.object({
   name: z.string().min(1).optional(),
@@ -23,6 +24,9 @@ export async function GET(
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { eventId } = await params;
+  if (!isUuid(eventId)) {
+    return NextResponse.json({ error: "Invalid event id" }, { status: 400 });
+  }
   const event = await getEvent(eventId);
   return NextResponse.json(event);
 }
@@ -40,6 +44,9 @@ export async function PATCH(
   if (!accessToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { eventId } = await params;
+  if (!isUuid(eventId)) {
+    return NextResponse.json({ error: "Invalid event id" }, { status: 400 });
+  }
   const body = await request.json();
   const parsed = UpdateEventSchema.safeParse(body);
   if (!parsed.success) {
