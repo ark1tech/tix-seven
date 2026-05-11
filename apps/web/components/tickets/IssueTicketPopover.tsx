@@ -272,7 +272,7 @@ export function IssueTicketPopover({ eventId, children }: Props) {
                   >
                     Rescan
                   </Button>
-                  <Button type="button" size="sm" onClick={() => onConfirm(defaultStub)} className="shadow-xs">
+                  <Button type="button" size="sm" onClick={() => onConfirm()} className="shadow-xs">
                     Retry
                   </Button>
                 </div>
