@@ -40,10 +40,9 @@ function messageForIssueError(code: IssueError): string {
 interface Props {
   eventId: string;
   children: React.ReactElement;
-  defaultStub?: boolean;
 }
 
-export function IssueTicketPopover({ eventId, children, defaultStub = false }: Props) {
+export function IssueTicketPopover({ eventId, children }: Props) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [phase, setPhase] = React.useState<Phase>("scanning");
@@ -99,7 +98,7 @@ export function IssueTicketPopover({ eventId, children, defaultStub = false }: P
         adapter.start((decoded) => {
           if (active) {
             stopScanner();
-            onConfirm(defaultStub, decoded);
+            onConfirm(false, decoded);
           }
         }).catch(() => {});
       });
@@ -249,7 +248,7 @@ export function IssueTicketPopover({ eventId, children, defaultStub = false }: P
                   <DialogHeader>
                     <DialogTitle>Issue Ticket</DialogTitle>
                     <DialogDescription>
-                      Review the scanned QR data before issuing the ticket.
+                      An error occurred while issuing the ticket.
                     </DialogDescription>
                   </DialogHeader>
                 </div>
