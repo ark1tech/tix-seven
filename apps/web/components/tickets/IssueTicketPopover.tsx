@@ -7,7 +7,6 @@ import { Loader2, CheckCircle2, AlertCircle, Camera, ScanLine } from "lucide-rea
 import { issueTicketAction } from "@/app/(dashboard)/events/[eventId]/actions";
 import { Button } from "@/components/ui/button";
 import type { IssueError } from "@/lib/gate-server/client";
-import { PHILSYS_PAYLOAD_FIELDS, type PhilsysPayload } from "@tix-seven/types";
 import {
   Dialog,
   DialogHeader,
@@ -19,7 +18,7 @@ import {
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { cn } from "@/lib/utils";
 
-type Phase = "scanning" | "confirm" | "submitting" | "success" | "error";
+type Phase = "scanning" | "submitting" | "success" | "error";
 
 const errorMessages: Record<IssueError, string> = {
   unauthorized:
@@ -42,72 +41,6 @@ interface Props {
   eventId: string;
   children: React.ReactElement;
   defaultStub?: boolean;
-}
-
-function ScannedPayloadDisplay({ data }: { data: Partial<PhilsysPayload> }) {
-  const displayFields = PHILSYS_PAYLOAD_FIELDS.filter(
-    (f) => !["uin", "address_line1", "address_line2", "address_line3"].includes(f.key)
-  );
-
-  const addressParts = [
-    data.address_line1,
-    data.address_line2,
-    data.address_line3,
-  ].filter(Boolean);
-  const fullAddress = addressParts.join(", ");
-  const isAddressMissing = addressParts.length === 0;
-
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      {displayFields.map((field) => {
-        const value = data?.[field.key];
-        const isMissing = !value;
-
-        return (
-          <div
-            key={field.key}
-            className={cn(
-              "flex flex-col p-2 rounded-md border border-input/30 transition-colors",
-              isMissing ? "bg-red-500/[0.03] border-red-500/20" : "bg-muted/20"
-            )}
-          >
-            <span className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-wide mb-0.5">
-              {field.label}
-            </span>
-            {isMissing ? (
-              <span className="text-xs text-red-500/60 font-medium leading-tight">
-                Section is missing
-              </span>
-            ) : (
-              <span className="text-xs text-foreground font-normal leading-tight wrap-break-word">
-                {value}
-              </span>
-            )}
-          </div>
-        );
-      })}
-
-      <div
-        className={cn(
-          "col-span-2 flex flex-col p-2 rounded-md border border-input/30 transition-colors",
-          isAddressMissing ? "bg-red-500/[0.03] border-red-500/20" : "bg-muted/20"
-        )}
-      >
-        <span className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-wide mb-0.5">
-          Address Line
-        </span>
-        {isAddressMissing ? (
-          <span className="text-xs text-red-500/60 font-medium leading-tight">
-            Section is missing
-          </span>
-        ) : (
-          <span className="text-xs text-foreground font-normal leading-tight wrap-break-word">
-            {fullAddress}
-          </span>
-        )}
-      </div>
-    </div>
-  );
 }
 
 export function IssueTicketPopover({ eventId, children, defaultStub = false }: Props) {
@@ -166,8 +99,7 @@ export function IssueTicketPopover({ eventId, children, defaultStub = false }: P
         adapter.start((decoded) => {
           if (active) {
             stopScanner();
-            setPayload(decoded);
-            setPhase("confirm");
+            onConfirm(defaultStub, decoded);
           }
         }).catch(() => {});
       });
@@ -179,14 +111,16 @@ export function IssueTicketPopover({ eventId, children, defaultStub = false }: P
     };
   }, [open, phase, stopScanner]);
 
-  async function onConfirm(stub: boolean = false) {
-    if (!payload.trim() || isSubmitting) return;
+  async function onConfirm(stub: boolean = false, payloadOverride?: string) {
+    const nextPayload = (payloadOverride ?? payload).trim();
+    if (!nextPayload || isSubmitting) return;
 
     setPhase("submitting");
     setErrorCode(null);
     setLastTicketId(null);
+    setPayload(nextPayload);
 
-    const r = await issueTicketAction(eventId, payload, stub);
+    const r = await issueTicketAction(eventId, nextPayload, stub);
 
     if (r.ok) {
       setLastTicketId(r.ticket.ticket_id);
@@ -209,14 +143,6 @@ export function IssueTicketPopover({ eventId, children, defaultStub = false }: P
       setPhase("scanning");
     }, 150);
   }
-
-  const parsedPayload = React.useMemo(() => {
-    try {
-      return JSON.parse(payload);
-    } catch {
-      return null;
-    }
-  }, [payload]);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -291,55 +217,6 @@ export function IssueTicketPopover({ eventId, children, defaultStub = false }: P
               </div>
             )}
 
-            {phase === "confirm" && (
-              <div className="flex-1 flex flex-col animate-in fade-in duration-200">
-                <div className="px-6 pt-6 pb-4">
-                  <DialogHeader>
-                    <DialogTitle>Confirm Details</DialogTitle>
-                    <DialogDescription>
-                      Review the scanned QR data before issuing the ticket.
-                    </DialogDescription>
-                  </DialogHeader>
-                </div>
-
-                <div className="px-6 flex-1 flex flex-col">
-                  <div className="flex-1 rounded-lg border border-input/50 bg-muted/5 p-4 overflow-auto max-h-[320px] custom-scrollbar">
-                    {parsedPayload !== null ? (
-                      <ScannedPayloadDisplay data={parsedPayload} />
-                    ) : (
-                      <pre className="font-mono text-sm leading-relaxed whitespace-pre-wrap break-all text-foreground/80">
-                        {payload}
-                      </pre>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 px-6 py-4 mt-6 border-t bg-muted/30">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={onRescan}
-                    className="text-muted-foreground hover:bg-transparent"
-                  >
-                    Rescan
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onConfirm(true)}
-                    className="shadow-xs"
-                  >
-                    Stub MOSIP
-                  </Button>
-                  <Button type="button" size="sm" onClick={() => onConfirm(defaultStub)} className="shadow-xs">
-                    Issue Ticket
-                  </Button>
-                </div>
-              </div>
-            )}
-
             {phase === "submitting" && (
               <div className="flex-1 flex flex-col items-center justify-center py-16 px-6 animate-in fade-in zoom-in-95 duration-300">
                 <Loader2 className="h-8 w-8 animate-spin text-primary/60 mb-4" />
@@ -378,16 +255,6 @@ export function IssueTicketPopover({ eventId, children, defaultStub = false }: P
                 </div>
 
                 <div className="px-6 flex-1 flex flex-col">
-                  <div className="flex-1 rounded-lg border border-input/50 bg-muted/5 p-4 overflow-auto max-h-[240px] custom-scrollbar">
-                    {parsedPayload !== null ? (
-                      <ScannedPayloadDisplay data={parsedPayload} />
-                    ) : (
-                      <pre className="font-mono text-sm leading-relaxed whitespace-pre-wrap break-all text-foreground/80">
-                        {payload}
-                      </pre>
-                    )}
-                  </div>
-
                   {errorCode && (
                     <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/5 p-2.5 rounded-lg border border-destructive/10 animate-in fade-in slide-in-from-top-1 duration-200 mt-3">
                       <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
@@ -405,15 +272,6 @@ export function IssueTicketPopover({ eventId, children, defaultStub = false }: P
                     className="text-muted-foreground hover:bg-transparent"
                   >
                     Rescan
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onConfirm(true)}
-                    className="shadow-xs"
-                  >
-                    Stub MOSIP
                   </Button>
                   <Button type="button" size="sm" onClick={() => onConfirm(defaultStub)} className="shadow-xs">
                     Retry
