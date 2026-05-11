@@ -166,14 +166,6 @@ Missing or invalid auth on gate-server should return **401** under the target co
 - DB migration + seed SQL
 - Gate server Dockerfile + Railway config
 
-### TODO
-
-- `apps/gate-server/app/services/verification.py` — DB queries inside `VerificationService`
-- `apps/gate-server/app/adapters/mosip.py` — replace `StubMOSIPAdapter` with real MOSIP SDK
-- Dashboard UI — fill component shells with actual Shadcn layouts
-- Sign-out server action in dashboard layout
-- Error boundaries and loading states on all pages
-
 ---
 
 ## Deployment
