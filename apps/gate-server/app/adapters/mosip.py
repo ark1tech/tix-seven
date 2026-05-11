@@ -364,6 +364,9 @@ class StubMOSIPAdapter:
         except _json.JSONDecodeError:
             return VerificationResult(verified=False, uin=None, psut=None)
 
+        if not isinstance(payload, dict):
+            return VerificationResult(verified=False, uin=None, psut=None)
+
         payloadCanonical = self._canonical(payload)
 
         for valid in self._valid:
