@@ -1,6 +1,6 @@
 # TixSeven
 
-A PhilSys National ID-powered event ticketing and gate verification system.
+A PhilSys National ID-powered event ticketing and gate verification system. 
 
 ## Architecture
 
