@@ -9,6 +9,7 @@
   // --- Configuration ---
   const char* ssid = "s3wifi";
   const char* password = "Com9L3x!";
+  // const bool STUB_MODE = true; 
 
   // Server Details — raw IP is valid for self-signed certs with SAN
   const char* serverUrl = "https://65.1.42.4/verify";
@@ -175,6 +176,7 @@
     StaticJsonDocument<200> doc;
     doc["qr_payload"] = qrPayload;
     doc["gate_id"] = gateId;
+    // doc["stub_mosip"] = STUB_MODE;
     String requestBody;
     serializeJson(doc, requestBody);
     Serial.println("[DEBUG L3] POST body: " + requestBody);
