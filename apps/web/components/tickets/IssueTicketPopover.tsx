@@ -256,7 +256,7 @@ export function IssueTicketPopover({ eventId, children, defaultStub = false }: P
                     {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
                     <video
                       id="qr-scanner-video"
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover transform scale-x-[-1]"
                       muted
                       playsInline
                     />
