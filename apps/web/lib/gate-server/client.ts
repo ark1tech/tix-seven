@@ -7,23 +7,82 @@ export type IssueError =
   | "mosip_unavailable"
   | "identity_not_verified"
   | "event_not_found"
+  | "event_not_accepting_tickets"
   | "ticket_already_issued"
+  | "network_error"
   | "internal_server_error";
 
 export type IssueTicketResult =
   | { ok: true; ticket: IssuedTicket }
-  | { ok: false; error: IssueError };
+  | { ok: false; error: IssueError; detail?: string };
+
+export type IssueTicketFailure = Extract<IssueTicketResult, { ok: false }>;
 
 export type MockScanResult =
   | { ok: true; result: "grant" | "deny"; ticket_id?: string; reason?: string }
   | { ok: false; error: string };
 
 function parseBodyDetail(body: unknown): string | undefined {
-  if (body && typeof body === "object" && "detail" in body) {
-    const d = (body as { detail: unknown }).detail;
-    if (typeof d === "string") return d;
+  if (!body || typeof body !== "object" || !("detail" in body)) {
+    return undefined;
+  }
+  const d = (body as { detail: unknown }).detail;
+  if (typeof d === "string") {
+    return d;
+  }
+  if (Array.isArray(d) && d.length > 0) {
+    const first = d[0];
+    if (first && typeof first === "object" && "msg" in first) {
+      const msg = (first as { msg: unknown }).msg;
+      if (typeof msg === "string") {
+        return msg;
+      }
+    }
   }
   return undefined;
+}
+
+function failure(
+  error: IssueError,
+  detail: string | undefined,
+): Extract<IssueTicketResult, { ok: false }> {
+  return detail === undefined ? { ok: false, error } : { ok: false, error, detail };
+}
+
+/** User-facing explanation for ticket issue failures (code + optional server detail). */
+export function formatIssueTicketUserMessage(f: IssueTicketFailure): string {
+  const primary: Record<IssueError, string> = {
+    unauthorized:
+      "You are not signed in, or your session has expired. Sign in again, then retry issuing the ticket.",
+    forbidden:
+      "Your account is not allowed to issue tickets for this event. Ask an organizer to grant access.",
+    mosip_unavailable:
+      "The Philsys / MOSIP identity service is temporarily unavailable. Wait a short time and try again.",
+    identity_not_verified:
+      "This National ID QR was not verified by Philsys. The code may be damaged, a screenshot of a screen, wrong ID type, or not valid for the configured MOSIP environment.",
+    event_not_found:
+      "No event matches this link. Refresh the page or open the event from your dashboard again.",
+    event_not_accepting_tickets:
+      "This event is not accepting new tickets right now (for example it is concluded or cancelled).",
+    ticket_already_issued:
+      "This person already has a ticket for this event. Duplicate issuance is not allowed.",
+    network_error:
+      "The app could not reach the ticket server. Check your internet connection, VPN, or whether the service is running, then try again.",
+    internal_server_error:
+      "The ticket server hit an error while saving or processing this request. Try again; if it keeps happening, contact support with the time of the attempt.",
+  };
+
+  const base = primary[f.error] ?? primary.internal_server_error;
+
+  if (!f.detail || f.detail.trim() === "") {
+    return base;
+  }
+
+  if (f.error === "internal_server_error" && f.detail === "internal_server_error") {
+    return base;
+  }
+
+  return `${base} (${f.detail})`;
 }
 
 export async function issueTicket(
@@ -77,7 +136,7 @@ export async function issueTicket(
         );
       }
     }
-    return { ok: false, error: "internal_server_error" };
+    return failure("network_error", undefined);
   }
   console.info(
     "[ticket-issue] gate->web response trace_id=%s status_code=%s response_trace_id=%s",
@@ -114,33 +173,38 @@ export async function issueTicket(
 
   // Auth / gateway (no body detail required; gate-server returns 401 for bad internal key or JWT)
   if (res.status === 401) {
-    return { ok: false, error: "unauthorized" };
+    return failure("unauthorized", undefined);
   }
   if (res.status === 403) {
-    return { ok: false, error: "forbidden" };
+    return failure("forbidden", undefined);
   }
   if (res.status === 503) {
-    return { ok: false, error: "mosip_unavailable" };
+    return failure("mosip_unavailable", undefined);
   }
 
   if (res.status === 400 && detail === "identity_not_verified") {
-    return { ok: false, error: "identity_not_verified" };
+    return failure("identity_not_verified", undefined);
   }
   if (res.status === 404 && detail === "event_not_found") {
-    return { ok: false, error: "event_not_found" };
+    return failure("event_not_found", undefined);
   }
-  if (res.status === 409 && detail === "ticket_already_issued")
-  {
-    return { ok: false, error: "ticket_already_issued" };
+  if (res.status === 409 && detail === "ticket_already_issued") {
+    return failure("ticket_already_issued", undefined);
+  }
+  if (res.status === 409 && detail === "event_not_accepting_tickets") {
+    return failure("event_not_accepting_tickets", undefined);
   }
   if (res.status === 500 && detail === "internal_server_error") {
-    return { ok: false, error: "internal_server_error" };
+    return failure("internal_server_error", undefined);
   }
   if (res.status === 500) {
-    return { ok: false, error: "internal_server_error" };
+    return failure("internal_server_error", detail);
   }
 
-  return { ok: false, error: "internal_server_error" };
+  const extra =
+    detail ??
+    (res.status >= 400 ? `HTTP ${String(res.status)}` : undefined);
+  return failure("internal_server_error", extra);
 }
 
 export async function mockScan(
