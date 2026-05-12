@@ -48,6 +48,15 @@ Two tables are used on `POST /verify`:
 
 **Deny** responses from the device API use the `denial_reason` enum **values** in JSON (e.g. `INVALID_GATE_ID`, `TICKET_NOT_FOUND`). The database stores the same enum on both tables.
 
+### Demo presentation logging
+
+For a live demo (e.g. AWS log tail), optional `[DEMO]` log lines summarize UIN/PSUT, MOSIP outcome, and ticket state. They are separate from structured technical logs and do **not** write full identity values to the database.
+
+| Variable | Description |
+| --- | --- |
+| `DEMO_LOG_IDENTITY_VALUES` | When `true`, `[DEMO]` lines include full UIN and PSUT. Default `false` masks to last four digits. |
+| `DEMO_DISABLE_MOSIP_AUTHENTICATOR` | When `true`, the MOSIP SDK is not initialized (no credential bundle required); identity verification always fails with a clear `[DEMO] CRYPTOGRAPHIC AUTHENTICATION FAILED` style message. |
+
 ## Prerequisites
 
 - Python 3.12 or 3.13
@@ -94,6 +103,8 @@ Open `.env` and fill in every value:
 | `HMAC_PEPPER` | 32-byte hex secret. **Must match `HMAC_PEPPER` in the web app `.env.local`.** Generate: `openssl rand -hex 32` |
 | `INTERNAL_API_KEY` | Pre-shared key for trusted backends (Next.js). Sent as `X-Internal-Api-Key` on `POST /dashboard/tickets/issue`. Must match `GATE_SERVER_INTERNAL_API_KEY` in the web app. |
 | `GATE_HARDWARE_API_KEY` | Pre-shared key for ESP8266 on `POST /verify` (`X-Gate-Api-Key`). Generate: `openssl rand -hex 32` |
+| `DEMO_LOG_IDENTITY_VALUES` | Optional. `true` logs full UIN/PSUT in `[DEMO]` lines; default masks. |
+| `DEMO_DISABLE_MOSIP_AUTHENTICATOR` | Optional. `true` skips MOSIP SDK init for demo-only runs. See [Demo presentation logging](#demo-presentation-logging). |
 
 For end-to-end MOSIP (issue ticket / verify), you need both **MOSIP env vars in `.env`** and the **three credential files** under `credentials/`; tests inject `StubMOSIPAdapter` only. See [MOSIP Credentials](#mosip-credentials) below.
 

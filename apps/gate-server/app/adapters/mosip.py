@@ -14,6 +14,7 @@ from jwcrypto import jwk
 from requests import RequestException
 
 from app.core.config import settings
+from app.core.demo_identity_log import format_psut_for_demo, format_uin_for_demo
 from app.core.trace import get_trace_id
 
 # Credential files live under apps/gate-server/credentials/ (sibling to app/)
@@ -65,8 +66,10 @@ def _require_mosip_credential_files() -> None:
     )
 
 
-def _make_authenticator() -> MOSIPAuthenticator:
-    """Build a MOSIPAuthenticator from environment-backed settings."""
+def _make_authenticator() -> MOSIPAuthenticator | None:
+    """Build a MOSIPAuthenticator from environment-backed settings, or None when demo-disabled."""
+    if settings.demo_disable_mosip_authenticator:
+        return None
     _require_mosip_credential_files()
     cfg_dict = {
         "mosip_auth": {
@@ -153,7 +156,7 @@ class MOSIPAdapter(Protocol):
     def verify(self, qr_payload: str) -> VerificationResult: ...
 
 
-_global_authenticator = None
+_global_authenticator: MOSIPAuthenticator | None = None
 _init_lock = threading.Lock()
 
 
@@ -172,7 +175,12 @@ class RealMOSIPAdapter:
                         "MOSIP Authenticator singleton not found. Starting initialization..."
                     )
                     _global_authenticator = _make_authenticator()
-                    _auth_log.info("MOSIP Authenticator initialized successfully.")
+                    if _global_authenticator is None:
+                        _auth_log.info(
+                            "MOSIP Authenticator disabled for demo (DEMO_DISABLE_MOSIP_AUTHENTICATOR)."
+                        )
+                    else:
+                        _auth_log.info("MOSIP Authenticator initialized successfully.")
 
         self._authenticator = _global_authenticator
 
@@ -188,6 +196,15 @@ class RealMOSIPAdapter:
         if uin is None or demographics is None:
             _auth_log.info(
                 "verify skipped: trace_id=%s reason=invalid_qr_payload", get_trace_id()
+            )
+            return VerificationResult(verified=False, uin=None, psut=None)
+
+        if self._authenticator is None:
+            _log_full = settings.demo_log_identity_values
+            _auth_log.info(
+                "[DEMO] CRYPTOGRAPHIC AUTHENTICATION FAILED | %s trace_id=%s reason=demo_mosip_authenticator_disabled",
+                format_uin_for_demo(uin, _log_full),
+                get_trace_id(),
             )
             return VerificationResult(verified=False, uin=None, psut=None)
 
@@ -267,6 +284,21 @@ class RealMOSIPAdapter:
             get_trace_id(),
             auth_status,
         )
+
+        _log_full = settings.demo_log_identity_values
+        if auth_status:
+            _auth_log.info(
+                "[DEMO] UIN VERIFIED | %s | %s trace_id=%s",
+                format_uin_for_demo(uin, _log_full),
+                format_psut_for_demo(psut, _log_full),
+                get_trace_id(),
+            )
+        else:
+            _auth_log.info(
+                "[DEMO] SIGNATURE VERIFICATION FAILED | %s trace_id=%s",
+                format_uin_for_demo(uin, _log_full),
+                get_trace_id(),
+            )
 
         return VerificationResult(
             verified=auth_status,

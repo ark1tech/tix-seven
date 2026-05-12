@@ -1,3 +1,4 @@
+import json
 import logging
 import uuid
 
@@ -5,6 +6,8 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.adapters.mosip import MOSIPUnavailableError
+from app.core.config import settings
+from app.core.demo_identity_log import format_psut_for_demo, format_uin_for_demo
 from app.core.trace import get_trace_id
 from app.core.utils import integrity_constraint_label, short_error_message
 from app.models.enums import EventStatusEnum, TicketStatusEnum
@@ -147,6 +150,21 @@ class IssuanceService:
             return self._abort(503, "mosip_unavailable")
 
         if verified is None:
+            _demo_uin: str | None = None
+            try:
+                parsed = json.loads(ctx.qr_payload)
+                if isinstance(parsed, dict) and parsed.get("uin") is not None:
+                    _demo_uin = str(parsed.get("uin"))
+            except (json.JSONDecodeError, TypeError):
+                _demo_uin = None
+
+            logger.info(
+                "[DEMO] SIGNATURE VERIFICATION FAILED | TICKET NOT ISSUED | trace_id=%s event_id=%s %s",
+                get_trace_id(),
+                ctx.event_id,
+                format_uin_for_demo(_demo_uin, settings.demo_log_identity_values),
+            )
+
             logger.warning(
                 "issue denied: trace_id=%s event_id=%s reason=IDENTITY_NOT_VERIFIED",
                 get_trace_id(),
@@ -159,6 +177,15 @@ class IssuanceService:
         ctx.psut = verified.psut
 
         ctx.link_hash = identity_svc.compute_link_hash(ctx.psut, ctx.event_id)
+
+        _log_full = settings.demo_log_identity_values
+        logger.info(
+            "[DEMO] UIN VERIFIED | PSUT ISSUED | trace_id=%s event_id=%s %s %s",
+            get_trace_id(),
+            ctx.event_id,
+            format_uin_for_demo(ctx.uin, _log_full),
+            format_psut_for_demo(ctx.psut, _log_full),
+        )
 
         return ctx
 
@@ -232,6 +259,16 @@ class IssuanceService:
             ticket.ticket_id,
             link.link_id,
             ctx.stub_mosip,
+        )
+
+        _log_full = settings.demo_log_identity_values
+        logger.info(
+            "[DEMO] TICKET ISSUED | %s | %s | TICKET STATUS: UNUSED | TICKET_ID=%s trace_id=%s event_id=%s",
+            format_uin_for_demo(ctx.uin, _log_full),
+            format_psut_for_demo(ctx.psut, _log_full),
+            ticket.ticket_id,
+            get_trace_id(),
+            ctx.event_id,
         )
 
         ctx.link_id = link.link_id
