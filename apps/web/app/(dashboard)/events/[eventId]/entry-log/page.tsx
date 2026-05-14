@@ -1,4 +1,4 @@
-import { getEntryLogs } from "@/lib/db/entry-logs";
+import { getEntryLogs } from "@/lib/gate-server/entry-logs";
 import EntryLogFeed from "@/components/entry-log/EntryLogFeed";
 
 export default async function EntryLogPage({

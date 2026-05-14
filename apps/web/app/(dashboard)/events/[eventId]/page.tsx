@@ -1,6 +1,6 @@
 import { getEvent } from "@/lib/db/events";
-import { getTickets } from "@/lib/db/tickets";
-import { getEntryLogs } from "@/lib/db/entry-logs";
+import { getTickets } from "@/lib/gate-server/tickets";
+import { getEntryLogs } from "@/lib/gate-server/entry-logs";
 import EventStats from "@/components/events/EventStats";
 import TicketTable from "@/components/tickets/TicketTable";
 import type { EventStats as EventStatsType } from "@tix-seven/types";
