@@ -17,6 +17,20 @@ class IdentityService:
         else:
             self.mosip = RealMOSIPAdapter()
 
+    @classmethod
+    def for_context(cls, *, stub: bool = False) -> "IdentityService":
+        """
+        Factory that respects an explicit stub override.
+ 
+        When stub=True the returned service always uses StubMOSIPAdapter, regardless of settings.use_stub_mosip.
+
+        When stub=False, the normal constructor logic applies.
+
+        # Paul: Ang over naman nito but whatever lmfao
+        """
+
+        return cls(mosip=StubMOSIPAdapter() if stub else None)
+
     def verify(self, qr_payload: str) -> VerifiedIdentity | None:
         """
         Forward the QR payload to the MOSIP Testbed.

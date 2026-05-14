@@ -3,8 +3,7 @@ import logging
 from sqlalchemy.orm import Session
 
 from app.adapters.mosip import MOSIPUnavailableError
-from app.core.config import settings
-from app.core.demo_identity_log import format_psut_for_demo, format_uin_for_demo
+from app.core.demo_identity_log import DemoLogger
 from app.core.trace import get_trace_id
 from app.core.utils import parse_uuid
 from app.models.enums import (
@@ -61,6 +60,7 @@ class VerificationService:
             context = self._grant(context)                   # Phase 2, Step 6
 
             self._write_log(context)
+
             self.db.commit()
 
         except _DenySignal:
@@ -168,14 +168,10 @@ class VerificationService:
         Forward the QR payload to MOSIP. On success, store the PSUT and compute the link_hash that will be used to look up the ticket.
         """
 
-        identity_svc = self.identity
+        identity_svc = IdentityService.for_context(stub=ctx.stub_mosip)
 
         if ctx.stub_mosip:
-            from app.adapters.mosip import StubMOSIPAdapter
-            from app.services.identity import IdentityService
-
             logger.info("stubbing mosip verification for trace_id=%s", get_trace_id())
-            identity_svc = IdentityService(mosip=StubMOSIPAdapter())
 
         try:
             verified = identity_svc.verify(ctx.qr_payload)
@@ -260,17 +256,10 @@ class VerificationService:
             ticket_id=ctx.ticket_id,
         )
 
-        _log_full = settings.demo_log_identity_values
-        logger.info(
-            "[DEMO] UIN VERIFIED | TICKET STATUS: UNUSED | ACCESS GRANTED | TICKET_ID=%s trace_id=%s gate_id=%s event_id=%s %s %s",
-            ctx.ticket_id,
-            get_trace_id(),
-            ctx.gate_id,
-            ctx.event_id,
-            format_uin_for_demo(ctx.uin, _log_full),
-            format_psut_for_demo(ctx.psut, _log_full),
+        DemoLogger(gate_id=ctx.gate_id, event_id=ctx.event_id).access_granted(
+            ctx.uin, ctx.psut, ctx.ticket_id
         )
-
+    
         return ctx
 
     # ------------------------------------------------------------------
@@ -286,32 +275,7 @@ class VerificationService:
         ctx.denial_reason = reason
         ctx.response = VerifyResponse(result="deny", reason=reason)
 
-        _log_full = settings.demo_log_identity_values
-        if reason == DenialReasonEnum.IDENTITY_NOT_VERIFIED:
-            logger.info(
-                "[DEMO] CRYPTOGRAPHIC AUTHENTICATION FAILED | ACCESS DENIED trace_id=%s gate_id=%s event_id=%s",
-                get_trace_id(),
-                ctx.gate_id,
-                ctx.event_id,
-            )
-        elif reason == DenialReasonEnum.LINK_NOT_FOUND:
-            logger.info(
-                "[DEMO] TICKET NOT FOUND FOR UIN | ACCESS DENIED trace_id=%s gate_id=%s event_id=%s %s %s",
-                get_trace_id(),
-                ctx.gate_id,
-                ctx.event_id,
-                format_uin_for_demo(ctx.uin, _log_full),
-                format_psut_for_demo(ctx.psut, _log_full),
-            )
-        elif reason == DenialReasonEnum.TICKET_ALREADY_USED:
-            logger.info(
-                "[DEMO] UIN VERIFIED | TICKET STATUS: USED | ACCESS DENIED trace_id=%s gate_id=%s event_id=%s %s %s",
-                get_trace_id(),
-                ctx.gate_id,
-                ctx.event_id,
-                format_uin_for_demo(ctx.uin, _log_full),
-                format_psut_for_demo(ctx.psut, _log_full),
-            )
+        DemoLogger(gate_id=ctx.gate_id, event_id=ctx.event_id).on_deny(reason, ctx)
 
         logger.warning(
             "verify denied: gate_id=%s event_id=%s reason=%s",

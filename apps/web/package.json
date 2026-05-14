@@ -33,7 +33,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "supabase": "^2.92.1",
-    "tailwindcss": "^4",
+    "tailwindcss": "^4.3.0",
     "typescript": "^5"
   }
 }

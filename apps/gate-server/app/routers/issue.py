@@ -39,6 +39,6 @@ def issue_tickets_dashboard(
     )
 
     try:
-        return service.issue(body.qr_payload, body.event_id, body.stub_mosip)
+        return service.issue(body.qr_payload, body.event_id, body.stub_mosip or False)
     except IssueError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc

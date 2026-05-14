@@ -1,13 +1,13 @@
-import json
 import logging
 import uuid
+from typing import Any, cast
+import json
 
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.adapters.mosip import MOSIPUnavailableError
-from app.core.config import settings
-from app.core.demo_identity_log import format_psut_for_demo, format_uin_for_demo
+from app.core.demo_identity_log import DemoLogger
 from app.core.trace import get_trace_id
 from app.core.utils import integrity_constraint_label, short_error_message
 from app.models.enums import EventStatusEnum, TicketStatusEnum
@@ -78,7 +78,10 @@ class IssuanceService:
             created_at=context.created_at,
         )
 
+    # ------------------------------------------------------------------
     # Context initialization
+    # ------------------------------------------------------------------
+
     def _init_context(self, qr_payload: str, event_id: uuid.UUID, stub_mosip: bool = False) -> IssueContext:
         return IssueContext(
             qr_payload=qr_payload,
@@ -121,21 +124,20 @@ class IssuanceService:
         return ctx
 
     # ------------------------------------------------------------------
-    # Pipeline Phase 2, Steps 3-4
+    # Pipeline Phase 0, Steps 3-4
     # ------------------------------------------------------------------
 
     def _verify_identity(self, ctx: IssueContext) -> IssueContext:
         """
         Forward the QR payload to MOSIP. On success, store the PSUT and compute the link_hash that will bind this identity to the event.
         """
+    
+        demo = DemoLogger(event_id=ctx.event_id)
 
-        identity_svc = self.identity
+        identity_svc = IdentityService.for_context(stub=ctx.stub_mosip)
 
-        if getattr(ctx, "stub_mosip", False):
-            from app.adapters.mosip import StubMOSIPAdapter
-            from app.services.identity import IdentityService
+        if ctx.stub_mosip:
             logger.info("stubbing mosip verification for trace_id=%s", get_trace_id())
-            identity_svc = IdentityService(mosip=StubMOSIPAdapter())
 
         try:
             verified = identity_svc.verify(ctx.qr_payload)
@@ -150,20 +152,7 @@ class IssuanceService:
             return self._abort(503, "mosip_unavailable")
 
         if verified is None:
-            _demo_uin: str | None = None
-            try:
-                parsed = json.loads(ctx.qr_payload)
-                if isinstance(parsed, dict) and parsed.get("uin") is not None:
-                    _demo_uin = str(parsed.get("uin"))
-            except (json.JSONDecodeError, TypeError):
-                _demo_uin = None
-
-            logger.info(
-                "[DEMO] SIGNATURE VERIFICATION FAILED | TICKET NOT ISSUED | trace_id=%s event_id=%s %s",
-                get_trace_id(),
-                ctx.event_id,
-                format_uin_for_demo(_demo_uin, settings.demo_log_identity_values),
-            )
+            demo.sig_failed(uin=_extract_uin_for_demo(ctx.qr_payload))
 
             logger.warning(
                 "issue denied: trace_id=%s event_id=%s reason=IDENTITY_NOT_VERIFIED",
@@ -175,22 +164,14 @@ class IssuanceService:
 
         ctx.uin = verified.uin
         ctx.psut = verified.psut
-
         ctx.link_hash = identity_svc.compute_link_hash(ctx.psut, ctx.event_id)
 
-        _log_full = settings.demo_log_identity_values
-        logger.info(
-            "[DEMO] UIN VERIFIED | PSUT ISSUED | trace_id=%s event_id=%s %s %s",
-            get_trace_id(),
-            ctx.event_id,
-            format_uin_for_demo(ctx.uin, _log_full),
-            format_psut_for_demo(ctx.psut, _log_full),
-        )
+        demo.uin_verified_psut_issued(ctx.uin, ctx.psut)
 
         return ctx
 
     # ------------------------------------------------------------------
-    # Pipeline Phase 2, Step 5
+    # Pipeline Phase 0, Step 5
     # ------------------------------------------------------------------
 
     def _create_ticket(self, ctx: IssueContext) -> IssueContext:
@@ -215,7 +196,6 @@ class IssuanceService:
 
             constraint = integrity_constraint_label(exc)
 
-            # The expected IntegrityError at the link stage is a duplicate link_hash
             if constraint and "link_hash" in constraint:
                 logger.warning(
                     "issue denied: trace_id=%s event_id=%s reason=TICKET_ALREADY_ISSUED constraint=%s",
@@ -261,15 +241,7 @@ class IssuanceService:
             ctx.stub_mosip,
         )
 
-        _log_full = settings.demo_log_identity_values
-        logger.info(
-            "[DEMO] TICKET ISSUED | %s | %s | TICKET STATUS: UNUSED | TICKET_ID=%s trace_id=%s event_id=%s",
-            format_uin_for_demo(ctx.uin, _log_full),
-            format_psut_for_demo(ctx.psut, _log_full),
-            ticket.ticket_id,
-            get_trace_id(),
-            ctx.event_id,
-        )
+        DemoLogger(event_id=ctx.event_id).ticket_issued(ctx.uin, ctx.psut, ticket.ticket_id)
 
         ctx.link_id = link.link_id
         ctx.ticket_id = ticket.ticket_id
@@ -282,8 +254,22 @@ class IssuanceService:
     # ------------------------------------------------------------------
 
     def _abort(self, status_code: int, detail: str) -> IssueContext:
-        """
-        Raise IssueError to unwind the pipeline.
-        """
-
         raise IssueError(status_code=status_code, detail=detail)
+
+
+def _extract_uin_for_demo(qr_payload: str) -> str | None:
+    """
+    UIN extraction from the raw QR payload for demo logging.
+
+    Only used on the failure path where MOSIP returned None, so the payload has not been validated; we catch all parse errors silently.
+    """
+
+    try:
+        parsed = json.loads(qr_payload)
+        if isinstance(parsed, dict) and "uin" in parsed:
+            return str(cast(dict[str, Any], parsed)["uin"])
+
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    return None
