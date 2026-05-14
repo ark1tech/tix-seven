@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { IssueTicketButton } from "@/components/tickets/IssueTicketButton";
+import { MockScanButton } from "@/components/tickets/MockScanButton";
 import { formatEventDateMediumPht, parsePhtEventTimestampToDate } from "@/lib/datetime-pht";
 import { cn } from "@/lib/utils";
 import type { Event } from "@tix-seven/types";
@@ -81,10 +82,13 @@ export default function EventHeader({ event }: Props) {
                 Live Entry Log
               </Link>
 
-              <IssueTicketButton 
-                eventId={event.event_id} 
+              <IssueTicketButton
+                eventId={event.event_id}
                 disabled={isPastEvent}
               />
+              {process.env.NEXT_PUBLIC_DEBUG_TOOLS === "true" ? (
+                <MockScanButton eventId={event.event_id} disabled={isPastEvent} />
+              ) : null}
             </>
           )}
         </div>

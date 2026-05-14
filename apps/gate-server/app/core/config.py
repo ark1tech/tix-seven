@@ -38,6 +38,11 @@ class Settings(BaseSettings):
 
     use_stub_mosip: bool = False
 
+    # Live presentation: log full UIN/PSUT only when explicitly enabled (default masked).
+    demo_log_identity_values: bool = False
+    # Simulate missing MOSIP authenticator (no SDK calls; credential files not required).
+    demo_disable_mosip_authenticator: bool = False
+
     @property
     def supabase_auth_issuer(self) -> str:
         return f"{self.supabase_url.rstrip('/')}/auth/v1"

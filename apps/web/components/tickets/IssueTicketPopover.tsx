@@ -6,7 +6,7 @@ import { Loader2, CheckCircle2, AlertCircle, Camera, ScanLine } from "lucide-rea
 
 import { issueTicketAction } from "@/app/(dashboard)/events/[eventId]/actions";
 import { Button } from "@/components/ui/button";
-import type { IssueError } from "@/lib/gate-server/client";
+import { formatIssueTicketUserMessage, type IssueTicketFailure } from "@/lib/gate-server/client";
 import {
   Dialog,
   DialogHeader,
@@ -20,23 +20,6 @@ import { cn } from "@/lib/utils";
 
 type Phase = "scanning" | "submitting" | "success" | "error";
 
-const errorMessages: Record<IssueError, string> = {
-  unauthorized:
-    "Your session is missing or no longer valid. Sign in, then try again.",
-  forbidden: "You do not have permission to issue tickets for this event.",
-  mosip_unavailable:
-    "Identity checking is temporarily unavailable. Try again in a few minutes.",
-  identity_not_verified: "The QR is invalid. Please try again.",
-  event_not_found: "This event was not found. Refresh the page and try again.",
-  ticket_already_issued: "A ticket for this identity already exists for this event.",
-  internal_server_error:
-    "Something went wrong on the server. Try again in a moment.",
-};
-
-function messageForIssueError(code: IssueError): string {
-  return errorMessages[code] ?? errorMessages.internal_server_error;
-}
-
 interface Props {
   eventId: string;
   children: React.ReactElement;
@@ -47,7 +30,7 @@ export function IssueTicketPopover({ eventId, children }: Props) {
   const [open, setOpen] = React.useState(false);
   const [phase, setPhase] = React.useState<Phase>("scanning");
   const [payload, setPayload] = React.useState("");
-  const [errorCode, setErrorCode] = React.useState<IssueError | null>(null);
+  const [issueFailure, setIssueFailure] = React.useState<IssueTicketFailure | null>(null);
   const [lastTicketId, setLastTicketId] = React.useState<string | null>(null);
   const scannerRef = React.useRef<import("@/lib/qr-scanner/camera-adapter").CameraAdapter | null>(null);
   const resetTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -62,7 +45,7 @@ export function IssueTicketPopover({ eventId, children }: Props) {
     stopScanner();
     setPayload("");
     setPhase("scanning");
-    setErrorCode(null);
+    setIssueFailure(null);
     setLastTicketId(null);
   }, [stopScanner]);
 
@@ -115,7 +98,7 @@ export function IssueTicketPopover({ eventId, children }: Props) {
     if (!nextPayload || isSubmitting) return;
 
     setPhase("submitting");
-    setErrorCode(null);
+    setIssueFailure(null);
     setLastTicketId(null);
     setPayload(nextPayload);
 
@@ -129,13 +112,13 @@ export function IssueTicketPopover({ eventId, children }: Props) {
       return;
     }
 
-    setErrorCode(r.error);
+    setIssueFailure(r);
     setPhase("error");
   }
 
   function onRescan() {
     setPayload("");
-    setErrorCode(null);
+    setIssueFailure(null);
     // Add a small delay to ensure the scanner is fully reset and doesn't immediately 
     // pick up the same QR code frame.
     setTimeout(() => {
@@ -248,16 +231,16 @@ export function IssueTicketPopover({ eventId, children }: Props) {
                   <DialogHeader>
                     <DialogTitle>Issue Ticket</DialogTitle>
                     <DialogDescription>
-                      An error occurred while issuing the ticket.
+                      The ticket was not issued. See the specific reason below, then rescan the QR or retry.
                     </DialogDescription>
                   </DialogHeader>
                 </div>
 
                 <div className="px-6 flex-1 flex flex-col">
-                  {errorCode && (
-                    <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/5 p-2.5 rounded-lg border border-destructive/10 animate-in fade-in slide-in-from-top-1 duration-200 mt-3">
-                      <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      <p>{messageForIssueError(errorCode)}</p>
+                  {issueFailure && (
+                    <div className="flex items-start gap-2.5 text-sm leading-snug text-destructive bg-destructive/5 p-3 rounded-lg border border-destructive/10 animate-in fade-in slide-in-from-top-1 duration-200 mt-3">
+                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
+                      <p className="min-w-0">{formatIssueTicketUserMessage(issueFailure)}</p>
                     </div>
                   )}
                 </div>

@@ -164,7 +164,7 @@ export default function TicketTable({ eventId, initialTickets }: { eventId: stri
           <TableHeader>
             <TableRow className="hover:bg-transparent border-b">
               <TableHead className="py-2 px-3 text-xs w-1/5">Ticket ID</TableHead>
-              <TableHead className="py-2 px-3 text-xs w-1/5">Link Hash</TableHead>
+              {/* <TableHead className="py-2 px-3 text-xs w-1/5">Link Hash</TableHead> */}
               <TableHead className="py-2 px-3 text-xs">Status</TableHead>
               <TableHead className="py-2 px-3 text-xs">Issued At</TableHead>
             </TableRow>
@@ -175,9 +175,9 @@ export default function TicketTable({ eventId, initialTickets }: { eventId: stri
                 <TableCell className="py-2 px-1 w-1/5 max-w-0">
                   <CopyableId id={ticket.ticket_id} />
                 </TableCell>
-                <TableCell className="py-2 px-1 w-1/5 max-w-0">
+                {/* <TableCell className="py-2 px-1 w-1/5 max-w-0">
                   <CopyableId id={ticket.link_hash} />
-                </TableCell>
+                </TableCell> */}
                 <TableCell className="py-2 px-3">
                   <span className={cn(
                     "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
