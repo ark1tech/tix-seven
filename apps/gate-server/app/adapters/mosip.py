@@ -338,48 +338,47 @@ class RealMOSIPAdapter:
                         time.sleep(_MOSIP_REQUEST_RETRY_DELAY_SECONDS)
                     continue
                 _auth_log.warning(
-                    "verify all retries exhausted: trace_id=%s reason=mosip_timeout error=%s",
+                    "verify all retries exhausted: trace_id=%s reason=mosip_timeout error=%s — falling back to mock server",
                     get_trace_id(),
                     repr(exc),
                 )
-                # mock_result = _try_mock_server(uin, demographics)
-                # if mock_result is not None:
-                #     _log_full = settings.demo_log_identity_values
-                #     if mock_result.verified:
-                #         _auth_log.info(
-                #             "[DEMO] UIN VERIFIED (mock server) | %s | %s trace_id=%s",
-                #             format_uin_for_demo(uin, _log_full),
-                #             format_psut_for_demo(mock_result.psut, _log_full),
-                #             get_trace_id(),
-                #         )
-                #     else:
-                #         _auth_log.info(
-                #             "[DEMO] SIGNATURE VERIFICATION FAILED (mock server) | %s trace_id=%s",
-                #             format_uin_for_demo(uin, _log_full),
-                #             get_trace_id(),
-                #         )
-                #     return mock_result
-                # _auth_log.warning(
-                #     "verify mock server also failed: trace_id=%s — falling back to stub (USE_STUB_MOSIP)",
-                #     get_trace_id(),
-                # )
-                # stub_result = StubMOSIPAdapter().verify(qr_payload)
-                # _log_full = settings.demo_log_identity_values
-                # if stub_result.verified:
-                #     _auth_log.info(
-                #         "[DEMO] UIN VERIFIED (stub fallback) | %s | %s trace_id=%s",
-                #         format_uin_for_demo(uin, _log_full),
-                #         format_psut_for_demo(stub_result.psut, _log_full),
-                #         get_trace_id(),
-                #     )
-                # else:
-                #     _auth_log.info(
-                #         "[DEMO] SIGNATURE VERIFICATION FAILED (stub fallback) | %s trace_id=%s",
-                #         format_uin_for_demo(uin, _log_full),
-                #         get_trace_id(),
-                #     )
-                # return stub_result
-                raise MOSIPUnavailableError("MOSIP auth request failed after all retries")
+                mock_result = _try_mock_server(uin, demographics)
+                if mock_result is not None:
+                    _log_full = settings.demo_log_identity_values
+                    if mock_result.verified:
+                        _auth_log.info(
+                            "[DEMO] UIN VERIFIED (mock server) | %s | %s trace_id=%s",
+                            format_uin_for_demo(uin, _log_full),
+                            format_psut_for_demo(mock_result.psut, _log_full),
+                            get_trace_id(),
+                        )
+                    else:
+                        _auth_log.info(
+                            "[DEMO] SIGNATURE VERIFICATION FAILED (mock server) | %s trace_id=%s",
+                            format_uin_for_demo(uin, _log_full),
+                            get_trace_id(),
+                        )
+                    return mock_result
+                _auth_log.warning(
+                    "verify mock server also failed: trace_id=%s — falling back to stub (USE_STUB_MOSIP)",
+                    get_trace_id(),
+                )
+                stub_result = StubMOSIPAdapter().verify(qr_payload)
+                _log_full = settings.demo_log_identity_values
+                if stub_result.verified:
+                    _auth_log.info(
+                        "[DEMO] UIN VERIFIED (stub fallback) | %s | %s trace_id=%s",
+                        format_uin_for_demo(uin, _log_full),
+                        format_psut_for_demo(stub_result.psut, _log_full),
+                        get_trace_id(),
+                    )
+                else:
+                    _auth_log.info(
+                        "[DEMO] SIGNATURE VERIFICATION FAILED (stub fallback) | %s trace_id=%s",
+                        format_uin_for_demo(uin, _log_full),
+                        get_trace_id(),
+                    )
+                return stub_result
             except RequestException as exc:
                 _auth_log.error(
                     "verify failed: trace_id=%s reason=mosip_or_network_fault error=%s",
