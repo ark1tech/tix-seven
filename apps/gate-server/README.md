@@ -103,6 +103,9 @@ Open `.env` and fill in every value:
 | `HMAC_PEPPER` | 32-byte hex secret. **Must match `HMAC_PEPPER` in the web app `.env.local`.** Generate: `openssl rand -hex 32` |
 | `INTERNAL_API_KEY` | Pre-shared key for trusted backends (Next.js). Sent as `X-Internal-Api-Key` on `POST /dashboard/tickets/issue`. Must match `GATE_SERVER_INTERNAL_API_KEY` in the web app. |
 | `GATE_HARDWARE_API_KEY` | Pre-shared key for ESP8266 on `POST /verify` (`X-Gate-Api-Key`). Generate: `openssl rand -hex 32` |
+| `MOSIP_REQUEST_TIMEOUT_SECONDS` | MOSIP request timeout (seconds). Requests that exceed this will be retried according to the retry settings below. |
+| `MOSIP_REQUEST_RETRY_ATTEMPTS` | Total attempts for MOSIP requests when a timeout occurs (includes the first try). Default `2` (one retry). |
+| `MOSIP_REQUEST_RETRY_DELAY_SECONDS` | Delay between timeout retries. Default `1.5`. |
 | `DEMO_LOG_IDENTITY_VALUES` | Optional. `true` logs full UIN/PSUT in `[DEMO]` lines; default masks. |
 | `DEMO_DISABLE_MOSIP_AUTHENTICATOR` | Optional. `true` skips MOSIP SDK init for demo-only runs. See [Demo presentation logging](#demo-presentation-logging). |
 

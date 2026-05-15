@@ -1,5 +1,6 @@
 import os
 import logging
+import time
 from dataclasses import dataclass
 from typing import Callable, Optional, Protocol
 
@@ -12,6 +13,7 @@ from mosip_auth_sdk.models import DemographicsModel
 from cryptography.hazmat.primitives import serialization
 from jwcrypto import jwk
 from requests import RequestException
+from requests.exceptions import Timeout
 
 from app.core.config import settings
 from app.core.demo_identity_log import format_psut_for_demo, format_uin_for_demo
@@ -33,7 +35,25 @@ def _read_timeout_seconds() -> int:
         return 120
 
 
+def _read_retry_attempts() -> int:
+    raw = os.getenv("MOSIP_REQUEST_RETRY_ATTEMPTS", "2")
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return 2
+
+
+def _read_retry_delay_seconds() -> float:
+    raw = os.getenv("MOSIP_REQUEST_RETRY_DELAY_SECONDS", "1.5")
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        return 1.5
+
+
 _MOSIP_REQUEST_TIMEOUT_SECONDS = _read_timeout_seconds()
+_MOSIP_REQUEST_RETRY_ATTEMPTS = _read_retry_attempts()
+_MOSIP_REQUEST_RETRY_DELAY_SECONDS = _read_retry_delay_seconds()
 
 
 def _with_default_timeout(
@@ -208,39 +228,66 @@ class RealMOSIPAdapter:
             )
             return VerificationResult(verified=False, uin=None, psut=None)
 
-        ## Calls upon the MOSIP sdk
-        try:
-            _auth_log.info(
-                "verify start: trace_id=%s calling_mosip_auth host=%s uin_suffix=%s",
-                get_trace_id(),
-                settings.mosip_ida_domain_uri,
-                uin[-4:],
-            )
-            response = self._authenticator.auth(
-                individual_id=uin,
-                individual_id_type="UIN",
-                demographic_data=demographics,
-                consent=True,
-            )
-            _auth_log.info(
-                "verify request completed: trace_id=%s status_code=%s",
-                get_trace_id(),
-                response.status_code,
-            )
-        except RequestException as exc:
-            _auth_log.error(
-                "verify failed: trace_id=%s reason=mosip_or_network_fault error=%s",
-                get_trace_id(),
-                repr(exc),
-            )
-            raise MOSIPUnavailableError("MOSIP auth request failed") from exc
-        except Exception as exc:
-            _auth_log.exception(
-                "verify failed: trace_id=%s reason=gate_server_fault unexpected_error=%s",
-                get_trace_id(),
-                type(exc).__name__,
-            )
-            raise
+        ## Calls upon the MOSIP sdk (retry on timeout)
+        response = None
+        for attempt in range(1, _MOSIP_REQUEST_RETRY_ATTEMPTS + 1):
+            try:
+                _auth_log.info(
+                    "verify start: trace_id=%s calling_mosip_auth host=%s uin_suffix=%s attempt=%s/%s",
+                    get_trace_id(),
+                    settings.mosip_ida_domain_uri,
+                    uin[-4:],
+                    attempt,
+                    _MOSIP_REQUEST_RETRY_ATTEMPTS,
+                )
+                response = self._authenticator.auth(
+                    individual_id=uin,
+                    individual_id_type="UIN",
+                    demographic_data=demographics,
+                    consent=True,
+                )
+                _auth_log.info(
+                    "verify request completed: trace_id=%s status_code=%s",
+                    get_trace_id(),
+                    response.status_code,
+                )
+                break
+            except Timeout as exc:
+                if attempt < _MOSIP_REQUEST_RETRY_ATTEMPTS:
+                    _auth_log.warning(
+                        "verify timeout: trace_id=%s attempt=%s/%s timeout_seconds=%s retrying_after_seconds=%s",
+                        get_trace_id(),
+                        attempt,
+                        _MOSIP_REQUEST_RETRY_ATTEMPTS,
+                        _MOSIP_REQUEST_TIMEOUT_SECONDS,
+                        _MOSIP_REQUEST_RETRY_DELAY_SECONDS,
+                    )
+                    if _MOSIP_REQUEST_RETRY_DELAY_SECONDS:
+                        time.sleep(_MOSIP_REQUEST_RETRY_DELAY_SECONDS)
+                    continue
+                _auth_log.error(
+                    "verify failed: trace_id=%s reason=mosip_timeout error=%s",
+                    get_trace_id(),
+                    repr(exc),
+                )
+                raise MOSIPUnavailableError("MOSIP auth request timed out") from exc
+            except RequestException as exc:
+                _auth_log.error(
+                    "verify failed: trace_id=%s reason=mosip_or_network_fault error=%s",
+                    get_trace_id(),
+                    repr(exc),
+                )
+                raise MOSIPUnavailableError("MOSIP auth request failed") from exc
+            except Exception as exc:
+                _auth_log.exception(
+                    "verify failed: trace_id=%s reason=gate_server_fault unexpected_error=%s",
+                    get_trace_id(),
+                    type(exc).__name__,
+                )
+                raise
+
+        if response is None:
+            raise MOSIPUnavailableError("MOSIP auth request failed")
 
         """
         Given a UIN and some demographic data, MOSIP returns:
