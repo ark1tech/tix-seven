@@ -105,8 +105,15 @@ def _try_mock_server(
         url,
         uin[-4:],
     )
+    resp = None
     try:
         resp = _requests.post(url, json=body, verify=False, timeout=30)
+        _auth_log.info(
+            "mock_server raw response: trace_id=%s status=%s body_prefix=%.300s",
+            get_trace_id(),
+            resp.status_code,
+            resp.text[:300],
+        )
         data = resp.json()
         inner = data.get("response", {})
         errors = data.get("errors")
@@ -130,8 +137,10 @@ def _try_mock_server(
         )
     except Exception as exc:
         _auth_log.error(
-            "mock_server failed: trace_id=%s error=%s",
+            "mock_server failed: trace_id=%s status=%s body_prefix=%.300s error=%s",
             get_trace_id(),
+            resp.status_code if resp is not None else "N/A",
+            (resp.text[:300] if resp is not None else ""),
             repr(exc),
         )
         return None
