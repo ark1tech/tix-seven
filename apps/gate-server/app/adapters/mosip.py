@@ -95,8 +95,11 @@ def _try_mock_server(
     scalar_fields = ("dob", "postal_code", "gender", "phone_number", "email_id", "age")
     for field in scalar_fields:
         val = getattr(demographics, field, None)
-        if val is not None:
-            body[field] = val
+        if val is None:
+            continue
+        if isinstance(val, (list, str)) and not val:
+            continue
+        body[field] = val
 
     url = f"{_MOSIP_MOCK_SERVER_URL}/api/v1/auth/yes-no"
     _auth_log.info(
