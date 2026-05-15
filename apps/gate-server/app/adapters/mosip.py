@@ -367,7 +367,26 @@ class RealMOSIPAdapter:
                             get_trace_id(),
                         )
                     return mock_result
-                raise MOSIPUnavailableError("MOSIP auth request timed out and mock server also failed") from exc
+                _auth_log.warning(
+                    "verify mock server also failed: trace_id=%s — falling back to stub (USE_STUB_MOSIP)",
+                    get_trace_id(),
+                )
+                stub_result = StubMOSIPAdapter().verify(qr_payload)
+                _log_full = settings.demo_log_identity_values
+                if stub_result.verified:
+                    _auth_log.info(
+                        "[DEMO] UIN VERIFIED (stub fallback) | %s | %s trace_id=%s",
+                        format_uin_for_demo(uin, _log_full),
+                        format_psut_for_demo(stub_result.psut, _log_full),
+                        get_trace_id(),
+                    )
+                else:
+                    _auth_log.info(
+                        "[DEMO] SIGNATURE VERIFICATION FAILED (stub fallback) | %s trace_id=%s",
+                        format_uin_for_demo(uin, _log_full),
+                        get_trace_id(),
+                    )
+                return stub_result
             except RequestException as exc:
                 _auth_log.error(
                     "verify failed: trace_id=%s reason=mosip_or_network_fault error=%s",
