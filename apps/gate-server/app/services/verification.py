@@ -190,7 +190,8 @@ class VerificationService:
 
         assert ctx.event_id is not None
 
-        ctx.link_hash = identity_svc.compute_link_hash(ctx.psut, ctx.event_id)
+        ctx.link_hash = identity_svc.compute_link_hash(ctx.uin, ctx.event_id)
+        # ctx.psut
 
         return ctx
 
