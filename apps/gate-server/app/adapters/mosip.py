@@ -290,191 +290,143 @@ class RealMOSIPAdapter:
             )
             return VerificationResult(verified=False, uin=None, psut=None)
 
-        # --- MOSIP IDA SDK path (commented out — IDA unreachable in current environment) ---
-        # if self._authenticator is None:
-        #     _log_full = settings.demo_log_identity_values
-        #     _auth_log.info(
-        #         "[DEMO] CRYPTOGRAPHIC AUTHENTICATION FAILED | %s trace_id=%s reason=demo_mosip_authenticator_disabled",
-        #         format_uin_for_demo(uin, _log_full),
-        #         get_trace_id(),
-        #     )
-        #     return VerificationResult(verified=False, uin=None, psut=None)
-        #
-        # response = None
-        # for attempt in range(1, _MOSIP_REQUEST_RETRY_ATTEMPTS + 1):
-        #     try:
-        #         _auth_log.info(
-        #             "verify start: trace_id=%s calling_mosip_auth host=%s uin_suffix=%s attempt=%s/%s",
-        #             get_trace_id(),
-        #             settings.mosip_ida_domain_uri,
-        #             uin[-4:],
-        #             attempt,
-        #             _MOSIP_REQUEST_RETRY_ATTEMPTS,
-        #         )
-        #         response = self._authenticator.auth(
-        #             individual_id=uin,
-        #             individual_id_type="UIN",
-        #             demographic_data=demographics,
-        #             consent=True,
-        #         )
-        #         _auth_log.info(
-        #             "verify request completed: trace_id=%s status_code=%s",
-        #             get_trace_id(),
-        #             response.status_code,
-        #         )
-        #         break
-        #     except Timeout as exc:
-        #         if attempt < _MOSIP_REQUEST_RETRY_ATTEMPTS:
-        #             _auth_log.warning(
-        #                 "verify timeout: trace_id=%s attempt=%s/%s timeout_seconds=%s retrying_after_seconds=%s",
-        #                 get_trace_id(),
-        #                 attempt,
-        #                 _MOSIP_REQUEST_RETRY_ATTEMPTS,
-        #                 _MOSIP_REQUEST_TIMEOUT_SECONDS,
-        #                 _MOSIP_REQUEST_RETRY_DELAY_SECONDS,
-        #             )
-        #             if _MOSIP_REQUEST_RETRY_DELAY_SECONDS:
-        #                 time.sleep(_MOSIP_REQUEST_RETRY_DELAY_SECONDS)
-        #             continue
-        #         _auth_log.warning(
-        #             "verify all retries exhausted: trace_id=%s reason=mosip_timeout error=%s — falling back to mock server",
-        #             get_trace_id(),
-        #             repr(exc),
-        #         )
-        #         break  # exit retry loop; fall through to mock server below
-        #     except RequestException as exc:
-        #         _auth_log.error(
-        #             "verify failed: trace_id=%s reason=mosip_or_network_fault error=%s",
-        #             get_trace_id(),
-        #             repr(exc),
-        #         )
-        #         raise MOSIPUnavailableError("MOSIP auth request failed") from exc
-        #     except Exception as exc:
-        #         _auth_log.exception(
-        #             "verify failed: trace_id=%s reason=gate_server_fault unexpected_error=%s",
-        #             get_trace_id(),
-        #             type(exc).__name__,
-        #         )
-        #         raise
-        #
-        # if response is not None:
-        #     raw_body = response.text
-        #     if not raw_body or not raw_body.strip():
-        #         _auth_log.error(
-        #             "verify failed: trace_id=%s reason=empty_mosip_response status_code=%s",
-        #             get_trace_id(),
-        #             response.status_code,
-        #         )
-        #         raise MOSIPUnavailableError(
-        #             f"MOSIP returned empty body (status {response.status_code})"
-        #         )
-        #     try:
-        #         decrypted = response.json()
-        #     except ValueError as exc:
-        #         _auth_log.error(
-        #             "verify failed: trace_id=%s reason=mosip_invalid_json status_code=%s body_prefix=%.120s",
-        #             get_trace_id(),
-        #             response.status_code,
-        #             raw_body[:120],
-        #         )
-        #         raise MOSIPUnavailableError("MOSIP returned non-JSON response") from exc
-        #     inner = decrypted.get("response", {})
-        #     auth_status: bool = inner.get("authStatus", False)
-        #     psut: Optional[str] = inner.get("authToken") if auth_status else None
-        #     _auth_log.info(
-        #         "verify response parsed: trace_id=%s auth_status=%s",
-        #         get_trace_id(),
-        #         auth_status,
-        #     )
-        #     _log_full = settings.demo_log_identity_values
-        #     if auth_status:
-        #         _auth_log.info(
-        #             "[DEMO] UIN VERIFIED | %s | %s trace_id=%s",
-        #             format_uin_for_demo(uin, _log_full),
-        #             format_psut_for_demo(psut, _log_full),
-        #             get_trace_id(),
-        #         )
-        #     else:
-        #         _auth_log.info(
-        #             "[DEMO] SIGNATURE VERIFICATION FAILED | %s trace_id=%s",
-        #             format_uin_for_demo(uin, _log_full),
-        #             get_trace_id(),
-        #         )
-        #     return VerificationResult(
-        #         verified=auth_status,
-        #         uin=uin if auth_status else None,
-        #         psut=psut,
-        #     )
-
-        # Retry loop against MOSIP_MOCK_SERVER_URL
-        mock_result = None
-        for attempt in range(1, _MOSIP_REQUEST_RETRY_ATTEMPTS + 1):
+        if self._authenticator is None:
+            _log_full = settings.demo_log_identity_values
             _auth_log.info(
-                "verify start: trace_id=%s calling_mock_server uin_suffix=%s attempt=%s/%s",
+                "[DEMO] CRYPTOGRAPHIC AUTHENTICATION FAILED | %s trace_id=%s reason=demo_mosip_authenticator_disabled",
+                format_uin_for_demo(uin, _log_full),
                 get_trace_id(),
-                uin[-4:],
-                attempt,
-                _MOSIP_REQUEST_RETRY_ATTEMPTS,
             )
-            mock_result = _try_mock_server(uin, demographics)
-            if mock_result is not None:
-                break
-            if attempt < _MOSIP_REQUEST_RETRY_ATTEMPTS:
-                _auth_log.warning(
-                    "verify mock server attempt failed: trace_id=%s attempt=%s/%s retrying_after_seconds=%s",
+            return VerificationResult(verified=False, uin=None, psut=None)
+
+        response = None
+        for attempt in range(1, _MOSIP_REQUEST_RETRY_ATTEMPTS + 1):
+            try:
+                _auth_log.info(
+                    "verify start: trace_id=%s calling_mosip_auth host=%s uin_suffix=%s attempt=%s/%s",
                     get_trace_id(),
+                    settings.mosip_ida_domain_uri,
+                    uin[-4:],
                     attempt,
                     _MOSIP_REQUEST_RETRY_ATTEMPTS,
-                    _MOSIP_REQUEST_RETRY_DELAY_SECONDS,
                 )
-                if _MOSIP_REQUEST_RETRY_DELAY_SECONDS:
-                    time.sleep(_MOSIP_REQUEST_RETRY_DELAY_SECONDS)
+                response = self._authenticator.auth(
+                    individual_id=uin,
+                    individual_id_type="UIN",
+                    demographic_data=demographics,
+                    consent=True,
+                )
+                _auth_log.info(
+                    "verify request completed: trace_id=%s status_code=%s",
+                    get_trace_id(),
+                    response.status_code,
+                )
+                break
+            except Timeout as exc:
+                if attempt < _MOSIP_REQUEST_RETRY_ATTEMPTS:
+                    _auth_log.warning(
+                        "verify timeout: trace_id=%s attempt=%s/%s timeout_seconds=%s retrying_after_seconds=%s",
+                        get_trace_id(),
+                        attempt,
+                        _MOSIP_REQUEST_RETRY_ATTEMPTS,
+                        _MOSIP_REQUEST_TIMEOUT_SECONDS,
+                        _MOSIP_REQUEST_RETRY_DELAY_SECONDS,
+                    )
+                    if _MOSIP_REQUEST_RETRY_DELAY_SECONDS:
+                        time.sleep(_MOSIP_REQUEST_RETRY_DELAY_SECONDS)
+                    continue
+                _auth_log.warning(
+                    "verify all retries exhausted: trace_id=%s reason=mosip_timeout error=%s — falling back to mock server",
+                    get_trace_id(),
+                    repr(exc),
+                )
+                mock_result = _try_mock_server(uin, demographics)
+                _log_full = settings.demo_log_identity_values
+                if mock_result is not None:
+                    if mock_result.verified:
+                        _auth_log.info(
+                            "[DEMO] UIN VERIFIED (mock server) | %s | %s trace_id=%s",
+                            format_uin_for_demo(uin, _log_full),
+                            format_psut_for_demo(mock_result.psut, _log_full),
+                            get_trace_id(),
+                        )
+                    else:
+                        _auth_log.info(
+                            "[DEMO] SIGNATURE VERIFICATION FAILED (mock server) | %s trace_id=%s",
+                            format_uin_for_demo(uin, _log_full),
+                            get_trace_id(),
+                        )
+                    return mock_result
+                raise MOSIPUnavailableError("MOSIP auth request failed after all retries and mock server also failed")
+            except RequestException as exc:
+                _auth_log.error(
+                    "verify failed: trace_id=%s reason=mosip_or_network_fault error=%s",
+                    get_trace_id(),
+                    repr(exc),
+                )
+                raise MOSIPUnavailableError("MOSIP auth request failed") from exc
+            except Exception as exc:
+                _auth_log.exception(
+                    "verify failed: trace_id=%s reason=gate_server_fault unexpected_error=%s",
+                    get_trace_id(),
+                    type(exc).__name__,
+                )
+                raise
+
+        if response is None:
+            raise MOSIPUnavailableError("MOSIP auth request failed")
+
+        raw_body = response.text
+        if not raw_body or not raw_body.strip():
+            _auth_log.error(
+                "verify failed: trace_id=%s reason=empty_mosip_response status_code=%s",
+                get_trace_id(),
+                response.status_code,
+            )
+            raise MOSIPUnavailableError(
+                f"MOSIP returned empty body (status {response.status_code})"
+            )
+
+        try:
+            decrypted = response.json()
+        except ValueError as exc:
+            _auth_log.error(
+                "verify failed: trace_id=%s reason=mosip_invalid_json status_code=%s body_prefix=%.120s",
+                get_trace_id(),
+                response.status_code,
+                raw_body[:120],
+            )
+            raise MOSIPUnavailableError("MOSIP returned non-JSON response") from exc
+
+        inner = decrypted.get("response", {})
+        auth_status: bool = inner.get("authStatus", False)
+        psut: Optional[str] = inner.get("authToken") if auth_status else None
+        _auth_log.info(
+            "verify response parsed: trace_id=%s auth_status=%s",
+            get_trace_id(),
+            auth_status,
+        )
 
         _log_full = settings.demo_log_identity_values
-        if mock_result is not None:
-            if mock_result.verified:
-                _auth_log.info(
-                    "[DEMO] UIN VERIFIED (mock server) | %s | %s trace_id=%s",
-                    format_uin_for_demo(uin, _log_full),
-                    format_psut_for_demo(mock_result.psut, _log_full),
-                    get_trace_id(),
-                )
-            else:
-                _auth_log.info(
-                    "[DEMO] SIGNATURE VERIFICATION FAILED (mock server) | %s trace_id=%s",
-                    format_uin_for_demo(uin, _log_full),
-                    get_trace_id(),
-                )
-            return mock_result
-
-        _auth_log.warning(
-            "verify mock server all retries failed: trace_id=%s — falling back to stub",
-            get_trace_id(),
-        )
-        stub_result = StubMOSIPAdapter().verify(qr_payload)
-        if stub_result.verified:
+        if auth_status:
             _auth_log.info(
-                "[DEMO] UIN VERIFIED (stub fallback) | %s | %s trace_id=%s",
+                "[DEMO] UIN VERIFIED | %s | %s trace_id=%s",
                 format_uin_for_demo(uin, _log_full),
-                format_psut_for_demo(stub_result.psut, _log_full),
+                format_psut_for_demo(psut, _log_full),
                 get_trace_id(),
             )
         else:
             _auth_log.info(
-                "[DEMO] SIGNATURE VERIFICATION FAILED (stub fallback) | %s trace_id=%s",
+                "[DEMO] SIGNATURE VERIFICATION FAILED | %s trace_id=%s",
                 format_uin_for_demo(uin, _log_full),
                 get_trace_id(),
             )
-        return stub_result
 
-        """
-        Given a UIN and some demographic data, MOSIP returns:
-        - authStatus: true  -> "YES, this person is who they claim to be"
-        - authStatus: false -> "NO, the data does not match"
-
-        - authToken: PSUT
-
-        """
+        return VerificationResult(
+            verified=auth_status,
+            uin=uin if auth_status else None,
+            psut=psut,
+        )
 
         # TODO: VERIFY. From my understanding, kahit sa yes / no API call may PSUT token?
 
