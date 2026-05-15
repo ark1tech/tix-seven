@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Callable, Optional, Protocol
 
 import threading
+import requests as _requests
 from dynaconf import Dynaconf
 from mosip_auth_sdk._authenticator.utils import restutil as mosip_restutil
 from mosip_auth_sdk._authenticator.utils.cryptoutil import CryptoUtility
@@ -54,6 +55,10 @@ def _read_retry_delay_seconds() -> float:
 _MOSIP_REQUEST_TIMEOUT_SECONDS = _read_timeout_seconds()
 _MOSIP_REQUEST_RETRY_ATTEMPTS = _read_retry_attempts()
 _MOSIP_REQUEST_RETRY_DELAY_SECONDS = _read_retry_delay_seconds()
+_MOSIP_MOCK_SERVER_URL = os.getenv(
+    "MOSIP_MOCK_SERVER_URL",
+    "https://cs145-iot-cup-1745973870.ap-southeast-1.elb.amazonaws.com",
+)
 
 
 def _with_default_timeout(
@@ -64,6 +69,72 @@ def _with_default_timeout(
         return request_func(*args, **kwargs)
 
     return _wrapped
+
+
+def _try_mock_server(
+    uin: str,
+    demographics: "DemographicsModel",
+) -> Optional["VerificationResult"]:
+    """
+    Fallback: send a plain HTTP request to the mock MOSIP server after all
+    SDK retries are exhausted. Returns a VerificationResult or None on failure.
+    """
+    body: dict = {"individual_id": uin, "consent": True}
+
+    # Map DemographicsModel fields to the flat mock-server request body.
+    # IdentityInfo list fields carry [{"language": "eng", "value": "..."}].
+    list_fields = (
+        "name", "address_line1", "address_line2", "address_line3",
+        "location1", "location3", "zone",
+    )
+    for field in list_fields:
+        val = getattr(demographics, field, None)
+        if val and isinstance(val, list) and val:
+            body[field] = val[0].get("value") if isinstance(val[0], dict) else str(val[0])
+
+    scalar_fields = ("dob", "postal_code", "gender", "phone_number", "email_id", "age")
+    for field in scalar_fields:
+        val = getattr(demographics, field, None)
+        if val is not None:
+            body[field] = val
+
+    url = f"{_MOSIP_MOCK_SERVER_URL}/api/v1/auth/yes-no"
+    _auth_log.info(
+        "mock_server fallback: trace_id=%s url=%s uin_suffix=%s",
+        get_trace_id(),
+        url,
+        uin[-4:],
+    )
+    try:
+        resp = _requests.post(url, json=body, verify=False, timeout=30)
+        data = resp.json()
+        inner = data.get("response", {})
+        errors = data.get("errors")
+        if errors:
+            _auth_log.warning(
+                "mock_server response errors: trace_id=%s errors=%s",
+                get_trace_id(),
+                errors,
+            )
+        auth_status: bool = inner.get("authStatus", False)
+        psut: Optional[str] = inner.get("authToken") if auth_status else None
+        _auth_log.info(
+            "mock_server response: trace_id=%s auth_status=%s",
+            get_trace_id(),
+            auth_status,
+        )
+        return VerificationResult(
+            verified=auth_status,
+            uin=uin if auth_status else None,
+            psut=psut,
+        )
+    except Exception as exc:
+        _auth_log.error(
+            "mock_server failed: trace_id=%s error=%s",
+            get_trace_id(),
+            repr(exc),
+        )
+        return None
 
 
 def _require_mosip_credential_files() -> None:
@@ -265,12 +336,29 @@ class RealMOSIPAdapter:
                     if _MOSIP_REQUEST_RETRY_DELAY_SECONDS:
                         time.sleep(_MOSIP_REQUEST_RETRY_DELAY_SECONDS)
                     continue
-                _auth_log.error(
-                    "verify failed: trace_id=%s reason=mosip_timeout error=%s",
+                _auth_log.warning(
+                    "verify all retries exhausted: trace_id=%s reason=mosip_timeout error=%s — falling back to mock server",
                     get_trace_id(),
                     repr(exc),
                 )
-                raise MOSIPUnavailableError("MOSIP auth request timed out") from exc
+                mock_result = _try_mock_server(uin, demographics)
+                if mock_result is not None:
+                    _log_full = settings.demo_log_identity_values
+                    if mock_result.verified:
+                        _auth_log.info(
+                            "[DEMO] UIN VERIFIED (mock server) | %s | %s trace_id=%s",
+                            format_uin_for_demo(uin, _log_full),
+                            format_psut_for_demo(mock_result.psut, _log_full),
+                            get_trace_id(),
+                        )
+                    else:
+                        _auth_log.info(
+                            "[DEMO] SIGNATURE VERIFICATION FAILED (mock server) | %s trace_id=%s",
+                            format_uin_for_demo(uin, _log_full),
+                            get_trace_id(),
+                        )
+                    return mock_result
+                raise MOSIPUnavailableError("MOSIP auth request timed out and mock server also failed") from exc
             except RequestException as exc:
                 _auth_log.error(
                     "verify failed: trace_id=%s reason=mosip_or_network_fault error=%s",
