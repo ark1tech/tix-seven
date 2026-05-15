@@ -81,25 +81,14 @@ def _try_mock_server(
     """
     body: dict = {"individual_id": uin, "consent": True}
 
-    # Map DemographicsModel fields to the flat mock-server request body.
-    # IdentityInfo list fields carry [{"language": "eng", "value": "..."}].
-    list_fields = (
-        "name", "address_line1", "address_line2", "address_line3",
-        "location1", "location3", "zone",
-    )
-    for field in list_fields:
+    # Only send simple scalar fields to the mock server.
+    # List-type fields (name, location1, location3, etc.) are skipped because
+    # the mock server does exact string comparison and encoding differences
+    # from the physical card cause false mismatches.
+    for field in ("dob", "postal_code"):
         val = getattr(demographics, field, None)
-        if val and isinstance(val, list) and val:
-            body[field] = val[0].get("value") if isinstance(val[0], dict) else str(val[0])
-
-    scalar_fields = ("dob", "postal_code", "gender", "phone_number", "email_id", "age")
-    for field in scalar_fields:
-        val = getattr(demographics, field, None)
-        if val is None:
-            continue
-        if isinstance(val, (list, str)) and not val:
-            continue
-        body[field] = val
+        if val and isinstance(val, str) and val.strip():
+            body[field] = val
 
     url = f"{_MOSIP_MOCK_SERVER_URL}/api/v1/auth/yes-no"
     _auth_log.info(
