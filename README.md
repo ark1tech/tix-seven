@@ -10,7 +10,7 @@ A PhilSys National ID-powered event ticketing and gate verification system.
 | Database + Auth + Realtime | Supabase (PostgreSQL) | Supabase cloud |
 | Gate server | Python FastAPI | Railway |
 
-See [`plans/0418-prd.md`](plans/0418-prd.md) for the full product requirements.
+See [`plans/0418-prd.md`](plans/0418-prd.md) for the full product requirements. 
 
 ---
 
