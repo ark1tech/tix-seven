@@ -83,7 +83,7 @@ export async function getEntryLogs(
     if (params.from_time) qs.set("from_time", params.from_time);
     if (params.to_time) qs.set("to_time", params.to_time);
 
-    const route = `/events/${eventId}/logs${qs.size ? `?${qs}` : ""}`;
+    const route = `/dashboard/events/${eventId}/logs${qs.size ? `?${qs}` : ""}`;
 
     console.info(
         "[entry-logs] web->gate request trace_id=%s route=GET %s",
@@ -140,7 +140,7 @@ export async function getLogGateFilterOptions(
     traceId: string,
 ): Promise<GateFilterOptionsResult> {
     const base = requireGateServerUrl().replace(/\/$/, "");
-    const route = `/events/${eventId}/logs/gate-options`;
+    const route = `/dashboard/events/${eventId}/logs/gate-options`;
 
     console.info(
         "[entry-logs] web->gate request trace_id=%s route=GET %s",

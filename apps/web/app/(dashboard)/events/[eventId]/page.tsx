@@ -6,8 +6,7 @@ import EventStats from "@/components/events/EventStats";
 import TicketTable from "@/components/tickets/TicketTable";
 import { notFound } from "next/navigation";
 import type { LogSummary } from "@tix-seven/types";
-import { TicketSummaryBar } from "@/components/tickets/TicketSummaryBar";
-import { LogSummaryBar } from "@/components/entry-log/EntryLogSummaryBar";
+import { EventOverviewCard } from "@/components/events/EventOverviewCard";
 
 const EMPTY_LOG_SUMMARY: LogSummary = {
   total: 0,
@@ -24,9 +23,6 @@ export default async function EventDetailPage({
 }) {
   const { eventId } = await params;
 
-  // One auth resolution shared across all three parallel gate-server calls.
-  // The layout already fetched EventDetail, but Next.js doesn't share server
-  // component data between layout and page — re-fetch is correct here.
   const { accessToken, traceId } = await requireAuth();
 
   const [detailResult, logsResult, ticketsResult] = await Promise.all([
@@ -43,16 +39,11 @@ export default async function EventDetailPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <EventStats
+      <EventOverviewCard
         ticketSummary={event.ticket_summary}
         logSummary={logSummary}
         capacity={event.capacity}
       />
-
-      <div className="grid grid-cols-2 gap-4">
-        <TicketSummaryBar summary={event.ticket_summary} capacity={event.capacity} />
-        <LogSummaryBar summary={logSummary} />
-      </div>
 
       <TicketTable eventId={eventId} initialTickets={tickets} />
     </div>
