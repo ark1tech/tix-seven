@@ -164,7 +164,7 @@ class IssuanceService:
 
         ctx.uin = verified.uin
         ctx.psut = verified.psut
-        ctx.link_hash = identity_svc.compute_link_hash(ctx.psut, ctx.event_id)
+        ctx.link_hash = identity_svc.compute_link_hash(ctx.uin, ctx.event_id) # PAUL: TEMPORARY: REPLACE WITH UIN BECAUSE THE SERVER IS SHIT
 
         demo.uin_verified_psut_issued(ctx.uin, ctx.psut)
 

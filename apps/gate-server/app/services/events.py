@@ -9,13 +9,19 @@ from app.core.trace import get_trace_id
 from app.models.enums import EventStatusEnum
 from app.models.event import Event
 from app.models.schemas import (
+    AssignedGate,
     EventCreateRequest,
+    EventDetailResponse,
     EventResponse,
     EventStatusUpdateRequest,
+    EventSummaryResponse,
+    TicketSummary,
     EventUpdateRequest,
 )
 from app.repositories.event import EventRepository
 from app.repositories.venue import VenueRepository
+from app.repositories.ticket import TicketRepository
+
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +38,12 @@ class EventService:
         db: Session,
         events: EventRepository | None = None,
         venues: VenueRepository | None = None,
+        tickets: TicketRepository | None = None,
     ) -> None:
         self.db = db
         self.events = events or EventRepository(db)
         self.venues = venues or VenueRepository(db)
+        self.tickets = tickets or TicketRepository(db)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -116,10 +124,10 @@ class EventService:
 
         return EventResponse(
             event_id=event.event_id,
-            venue_id=event.venue_id,
-            venue_name=venue_name,
             name=event.name,
             status=event.status,
+            venue_id=event.venue_id,
+            venue_name=venue_name,
             start_time=event.start_time,
             end_time=event.end_time,
             capacity=event.capacity,
@@ -337,4 +345,107 @@ class EventService:
             "event delete succeeded: trace_id=%s event_id=%s",
             trace_id,
             event_id,
+        )
+
+    # ------------------------------------------------------------------
+    # Event List View
+    # ------------------------------------------------------------------
+
+    def get_events(self) -> list[EventSummaryResponse]:
+        """
+        Return all events with their admitted count.
+        """
+
+        trace_id = get_trace_id()
+
+        logger.info(
+            "event get_events start: trace_id=%s",
+            trace_id,
+        )
+
+        events = self.events.get_all_with_venue()
+
+        if not events:
+            return []
+
+        event_ids = [event.event_id for event in events]
+
+        admitted_counts_in_bulk = self.events.get_admitted_counts_in_bulk(event_ids)
+
+        result = [
+            EventSummaryResponse(
+                event_id=event.event_id,
+                name=event.name,
+                status=event.status,
+                venue_name=event.venue.name,
+                start_time=event.start_time,
+                end_time=event.end_time,
+                capacity=event.capacity,
+                admitted_count=admitted_counts_in_bulk.get(event.event_id, 0),
+            )
+            for event in events
+        ]
+
+        logger.info(
+            "event get_events succeeded: trace_id=%s count=%d",
+            trace_id,
+            len(result),
+        )
+
+        return result
+
+    # ------------------------------------------------------------------
+    # Event Detail View
+    # ------------------------------------------------------------------
+
+    def get_detail(self, event_id: uuid.UUID) -> EventDetailResponse:
+        trace_id = get_trace_id()
+        logger.info(
+            "event get_detail start: trace_id=%s event_id=%s",
+            trace_id,
+            event_id,
+        )
+
+        event = self._get_or_404(event_id)
+
+        admitted_count = self.events.get_admitted_count(event_id)
+
+        gates = self.events.get_assigned_gates(event_id)
+
+        assigned_gates = [
+            AssignedGate(
+                gate_id=gate.gate_id,
+                location=gate.location,
+                status=gate.status,
+                assignment_id=assignment_id,
+            )
+            for gate, assignment_id in gates
+        ]
+
+        summary = self.tickets.get_summary(event_id)
+
+        ticket_summary = TicketSummary(
+            total=summary.total,
+            used=summary.used,
+            unused=summary.unused,
+        )
+
+        logger.info(
+            "event get_detail succeeded: trace_id=%s event_id=%s",
+            trace_id,
+            event_id,
+        )
+
+        return EventDetailResponse(
+            event_id=event.event_id,
+            name=event.name,
+            status=event.status,
+            venue_id=event.venue_id,
+            venue_name=event.venue.name,
+            start_time=event.start_time,
+            end_time=event.end_time,
+            capacity=event.capacity,
+            admitted_count=admitted_count,
+            assigned_gates=assigned_gates,
+            ticket_summary=ticket_summary,
         )

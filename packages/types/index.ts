@@ -46,12 +46,6 @@ export interface AssignedGate {
     assignment_id: string; // surfaced for support or debug
 }
 
-// Ticket counts embedded in EventDetail.
-export interface EventTicketSummary {
-    total_issued: number;
-    total_used: number;
-    total_unused: number;
-}
 
 // Full payload for the Event Detail View. Returned by GET /events/:id/detail (gate-server).
 export interface EventDetail {
@@ -65,7 +59,7 @@ export interface EventDetail {
     capacity: number;
     admitted_count: number;
     assigned_gates: AssignedGate[];
-    ticket_summary: EventTicketSummary;
+    ticket_summary: TicketSummary;
 }
 
 // ---------------------------------------------------------------------------

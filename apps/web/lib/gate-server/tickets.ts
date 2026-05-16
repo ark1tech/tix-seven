@@ -63,7 +63,7 @@ function mapErrorResponse(
 export type TicketListParams = {
     status?: TicketStatus;
     sort_by?: "created_at" | "used_at";
-    sort_dir?: "asc" | "desc";
+    sort_direction?: "asc" | "desc";
 };
 
 /*
@@ -81,7 +81,7 @@ export async function getTickets(
     const qs = new URLSearchParams();
     if (params.status) qs.set("status", params.status);
     if (params.sort_by) qs.set("sort_by", params.sort_by);
-    if (params.sort_dir) qs.set("sort_dir", params.sort_dir);
+    if (params.sort_direction) qs.set("sort_direction", params.sort_direction);
 
     const route = `/dashboard/events/${eventId}/tickets${qs.size ? `?${qs}` : ""}`;
 
