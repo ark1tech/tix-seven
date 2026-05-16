@@ -1,6 +1,7 @@
 import { getGate } from "@/lib/db/gates";
 import GateHeader from "@/components/gates/GateHeader";
 import { notFound } from "next/navigation";
+import { isUuid } from "@/lib/utils";
 
 export default async function GateLayout({
   children,
@@ -10,11 +11,10 @@ export default async function GateLayout({
   params: Promise<{ gateId: string }>;
 }) {
   const { gateId } = await params;
-  const gate = await getGate(gateId);
+  if (!isUuid(gateId)) notFound();
 
-  if (!gate) {
-    notFound();
-  }
+  const gate = await getGate(gateId);
+  if (!gate) notFound();
 
   return (
     <div className="flex flex-col">

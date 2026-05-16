@@ -65,10 +65,10 @@ export function MockScanPopover({ eventId, children, initialGates, stubMode }: P
       }
       setPhase("idle");
     } catch (e) {
-      setError("Failed to load gates");
+      setError(`Failed to load gates: ${e}`);
       setPhase("error");
     }
-  }, [eventId, hasLoaded, phase, selectedGateId, gates.length]);
+  }, [eventId, hasLoaded, phase, selectedGateId, gates]);
 
   const resetForm = React.useCallback(() => {
     setPayload("");
@@ -134,7 +134,7 @@ export function MockScanPopover({ eventId, children, initialGates, stubMode }: P
         align="end"
         sideOffset={12}
       >
-        <div className="min-h-[320px] flex flex-col relative">
+        <div className="min-h-80 flex flex-col relative">
           {phase === "loading_gates" ? (
             <div className="flex-1 flex flex-col items-center justify-center py-12 px-6">
               <Loader2 className="h-8 w-8 animate-spin text-primary/60 mb-4" />
@@ -218,7 +218,7 @@ export function MockScanPopover({ eventId, children, initialGates, stubMode }: P
                   </Select>
                 </div>
 
-                <div className="flex-1 min-h-[120px] space-y-2">
+                <div className="flex-1 min-h-30 space-y-2">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-0.5">
                     QR Payload (JSON)
                   </label>
@@ -230,7 +230,7 @@ export function MockScanPopover({ eventId, children, initialGates, stubMode }: P
                     onKeyDown={handleKeyDown}
                     rows={5}
                     className={cn(
-                      "w-full h-full min-h-[120px] resize-none rounded-lg border border-input/50 bg-muted/10 px-3 py-2.5",
+                      "w-full h-full min-h-30 resize-none rounded-lg border border-input/50 bg-muted/10 px-3 py-2.5",
                       "font-mono text-[11px] leading-relaxed",
                       "placeholder:text-muted-foreground/40",
                       "outline-none transition-all",

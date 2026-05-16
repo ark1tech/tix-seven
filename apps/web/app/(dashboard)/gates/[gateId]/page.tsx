@@ -1,7 +1,11 @@
 import { getGate } from "@/lib/db/gates";
-import { getEvents } from "@/lib/db/events";
+import { getEvents } from "@/lib/gate-server/events";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EventStatusBadge } from "@/components/events/EventStatusBadge";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
+import { notFound } from "next/navigation";
 
 export default async function GateDetailPage({
   params,
@@ -9,12 +13,19 @@ export default async function GateDetailPage({
   params: Promise<{ gateId: string }>;
 }) {
   const { gateId } = await params;
-  const [gate, events] = await Promise.all([
+  const { accessToken, traceId } = await requireAuth();
+
+  const [gate, eventsResult] = await Promise.all([
     getGate(gateId),
-    getEvents()
+    getEvents(accessToken, traceId),
   ]);
 
-  const assignedEvent = events.find(e => e.event_id === gate.event_id);
+  if (!gate) notFound();
+
+  const events = eventsResult.ok ? eventsResult.events : [];
+  const assignedEvent = gate.event_id
+    ? events.find((e) => e.event_id === gate.event_id) ?? null
+    : null;
 
   return (
     <div className="flex flex-col gap-8">
@@ -26,14 +37,20 @@ export default async function GateDetailPage({
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4">
-              <div className={cn(
-                "h-3 w-3 rounded-full animate-pulse",
-                gate.status === "ONLINE" ? "bg-emerald-500" : "bg-zinc-400"
-              )} />
+              <div
+                className={cn(
+                  "h-3 w-3 rounded-full",
+                  gate.status === "ONLINE" ? "bg-emerald-500 animate-pulse" : "bg-zinc-400"
+                )}
+              />
               <div>
-                <p className="font-medium">{gate.status === "ONLINE" ? "Online" : "Offline"}</p>
+                <p className="font-medium">
+                  {gate.status === "ONLINE" ? "Online" : "Offline"}
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  {gate.status === "ONLINE" ? "Gate is actively listening for scans." : "Gate is not currently accepting scans."}
+                  {gate.status === "ONLINE"
+                    ? "Gate is actively listening for scans."
+                    : "Gate is not currently accepting scans."}
                 </p>
               </div>
             </div>
@@ -47,11 +64,17 @@ export default async function GateDetailPage({
           </CardHeader>
           <CardContent>
             {assignedEvent ? (
-              <div>
-                <p className="font-medium text-primary">{assignedEvent.name}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {assignedEvent.venue_name}
-                </p>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Link
+                    href={`/events/${assignedEvent.event_id}`}
+                    className="font-medium text-primary hover:underline underline-offset-4"
+                  >
+                    {assignedEvent.name}
+                  </Link>
+                  <EventStatusBadge status={assignedEvent.status} />
+                </div>
+                <p className="text-xs text-muted-foreground">{assignedEvent.venue_name}</p>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">Unassigned</p>

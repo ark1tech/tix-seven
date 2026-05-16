@@ -10,6 +10,13 @@ export interface Gate {
   location: string;
 }
 
+interface GateAssignmentRow {
+  gate_id: string;
+  gate: Array<{
+    location: string;
+  }>;
+}
+
 export async function getAssignedGatesAction(eventId: string): Promise<Gate[]> {
   const supabase = await createClient();
   
@@ -29,9 +36,9 @@ export async function getAssignedGatesAction(eventId: string): Promise<Gate[]> {
     return [];
   }
 
-  return data.map((d: any) => ({
+  return (data as GateAssignmentRow[]).map((d) => ({
     gate_id: d.gate_id,
-    location: d.gate.location,
+    location: d.gate[0].location,
   }));
 }
 

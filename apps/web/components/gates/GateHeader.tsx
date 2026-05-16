@@ -6,6 +6,7 @@ import { ChevronRight, Plus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Gate } from "@tix-seven/types";
+import { GateStatusBadge } from "./GateStatusBadge";
 
 interface Props {
   gate?: Gate;
@@ -20,12 +21,13 @@ export default function GateHeader({ gate }: Props) {
 
   return (
     <div className="pb-5 border-b mb-8">
+      {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
         <Link
           href="/gates"
           className={cn(
             "hover:text-foreground transition-colors duration-150",
-            isRoot ? "text-foreground cursor-default" : ""
+            isRoot && "text-foreground cursor-default"
           )}
         >
           Gates
@@ -58,19 +60,25 @@ export default function GateHeader({ gate }: Props) {
         )}
       </nav>
 
+      {/* Title row */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {isNew ? "Register Gate" : gate ? gate.location : "Gates"}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {isNew 
-              ? "Connect a new hardware gate to your venue" 
-              : gate 
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {isNew ? "Register Gate" : gate ? gate.location : "Gates"}
+            </h1>
+            {/* Show live status badge only on gate detail/edit pages */}
+            {gate && <GateStatusBadge status={gate.status} />}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {isNew
+              ? "Connect a new hardware gate to your venue"
+              : gate
                 ? "Manage access points and hardware status"
                 : "List of all access points and hardware status"}
           </p>
         </div>
+
         <div className="flex gap-2 shrink-0">
           {isRoot && (
             <Link
