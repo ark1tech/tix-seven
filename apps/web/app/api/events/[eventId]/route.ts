@@ -5,7 +5,7 @@ import { phtEventTimestampZ } from "@/lib/datetime-pht";
 import { createClient } from "@/lib/supabase/server";
 import { getEvent } from "@/lib/db/events";
 import { updateEvent } from "@/lib/gate-server/events";
-import { isUuid } from "@/lib/uuid";
+import { isUuid } from "@/lib/utils";
 
 const UpdateEventSchema = z.object({
   name: z.string().min(1).optional(),

@@ -64,7 +64,7 @@ export type LogListParams = {
     to_time?: string;   // ISO 8601
 };
 
-/**
+/*
 GET /events/:eventId/logs
 Returns the summary bar (unfiltered) + filtered log rows.
 */
@@ -104,6 +104,7 @@ export async function getEntryLogs(
             traceId,
             route,
         );
+
         return { ok: false, error: "internal_server_error" };
     }
 

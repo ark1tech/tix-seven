@@ -79,6 +79,7 @@ export async function getTickets(
     const base = requireGateServerUrl().replace(/\/$/, "");
 
     const qs = new URLSearchParams();
+
     if (params.status) qs.set("status", params.status);
     if (params.sort_by) qs.set("sort_by", params.sort_by);
     if (params.sort_direction) qs.set("sort_direction", params.sort_direction);

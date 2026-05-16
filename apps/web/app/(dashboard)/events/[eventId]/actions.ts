@@ -17,6 +17,7 @@ export async function issueTicketAction(eventId: string, qrPayload: string, stub
   );
 
   const supabase = await createClient();
+
   const {
     data: { user },
     error: userError,

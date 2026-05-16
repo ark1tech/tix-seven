@@ -1,9 +1,21 @@
-import { getEvent } from "@/lib/db/events";
-import { getTickets } from "@/lib/gate-server/tickets";
+import { getEventDetail } from "@/lib/gate-server/events";
 import { getEntryLogs } from "@/lib/gate-server/entry-logs";
+import { getTickets } from "@/lib/gate-server/tickets";
+import { requireAuth } from "@/lib/auth/require-auth";
 import EventStats from "@/components/events/EventStats";
 import TicketTable from "@/components/tickets/TicketTable";
-import type { EventStats as EventStatsType } from "@tix-seven/types";
+import { notFound } from "next/navigation";
+import type { LogSummary } from "@tix-seven/types";
+import { TicketSummaryBar } from "@/components/tickets/TicketSummaryBar";
+import { LogSummaryBar } from "@/components/entry-log/EntryLogSummaryBar";
+
+const EMPTY_LOG_SUMMARY: LogSummary = {
+  total: 0,
+  granted: 0,
+  denied: 0,
+  timeout_or_error: 0,
+  denial_breakdown: [],
+};
 
 export default async function EventDetailPage({
   params,
@@ -11,26 +23,38 @@ export default async function EventDetailPage({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-  const [event, tickets, logs] = await Promise.all([
-    getEvent(eventId),
-    getTickets(eventId),
-    getEntryLogs(eventId),
+
+  // One auth resolution shared across all three parallel gate-server calls.
+  // The layout already fetched EventDetail, but Next.js doesn't share server
+  // component data between layout and page — re-fetch is correct here.
+  const { accessToken, traceId } = await requireAuth();
+
+  const [detailResult, logsResult, ticketsResult] = await Promise.all([
+    getEventDetail(accessToken, eventId, traceId),
+    getEntryLogs(accessToken, eventId, {}, traceId),
+    getTickets(accessToken, eventId, {}, traceId),
   ]);
 
-  const stats: EventStatsType = {
-    sold: tickets.length,
-    scanned: logs.filter((l) => l.result === "GRANTED").length,
-    denied: logs.filter((l) => l.result !== "GRANTED").length,
-  };
+  if (!detailResult.ok) notFound();
+
+  const event = detailResult.event;
+  const logSummary = logsResult.ok ? logsResult.data.summary : EMPTY_LOG_SUMMARY;
+  const tickets = ticketsResult.ok ? ticketsResult.data.tickets : [];
 
   return (
     <div className="flex flex-col gap-8">
+      <EventStats
+        ticketSummary={event.ticket_summary}
+        logSummary={logSummary}
+        capacity={event.capacity}
+      />
 
-      <EventStats stats={stats} capacity={event.capacity} />
-
-      <div className="flex flex-col gap-4">
-        <TicketTable eventId={eventId} initialTickets={tickets} />
+      <div className="grid grid-cols-2 gap-4">
+        <TicketSummaryBar summary={event.ticket_summary} capacity={event.capacity} />
+        <LogSummaryBar summary={logSummary} />
       </div>
+
+      <TicketTable eventId={eventId} initialTickets={tickets} />
     </div>
   );
 }
