@@ -12,23 +12,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Event, Gate } from "@tix-seven/types";
-import type { Venue } from "@/lib/db/venues";
+import type { EventSummary, Gate, Venue } from "@tix-seven/types";
 
 interface Props {
-  events: Event[];
+  events: EventSummary[];
   venues: Venue[];
   gate?: Gate;
+  // The current active assignment cannot be read off Gate directly — it lives
+  // on GateAssignment. The page fetches it separately and passes it here.
+  currentEventId?: string | null;
 }
 
-export default function GateForm({ events, venues, gate }: Props) {
+export default function GateForm({ events, venues, gate, currentEventId }: Props) {
   const router = useRouter();
   const isEditing = !!gate;
+
   const [location, setLocation] = useState(gate?.location ?? "");
   const [venueId, setVenueId] = useState<string>(gate?.venue_id ?? venues[0]?.venue_id ?? "");
-  const [eventId, setEventId] = useState<string>(gate?.event_id ?? "unassigned");
+  const [eventId, setEventId] = useState<string>(currentEventId ?? "unassigned");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Only show events that are assignable: SCHEDULED or ACTIVE.
+  // CONCLUDED and CANCELLED events cannot receive new assignments.
+  const assignableEvents = events.filter(
+    (e) => e.status === "SCHEDULED" || e.status === "ACTIVE"
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,26 +58,25 @@ export default function GateForm({ events, venues, gate }: Props) {
     });
 
     if (!res.ok) {
-      const body = await res.json();
-      const errMsg = typeof body.error === "string" ? body.error : (body.error?.formErrors?.[0] || body.error?.message || "Failed to register gate");
+      const body = await res.json().catch(() => ({}));
+      const errMsg =
+        typeof body.error === "string"
+          ? body.error
+          : body.error?.formErrors?.[0] ?? body.error?.message ?? "Failed to save gate";
       setError(errMsg);
       setLoading(false);
       return;
     }
 
-    const saved = await res.json();
     startTransition(() => {
-      if (isEditing) {
-        router.push(`/gates/${gate.gate_id}`);
-      } else {
-        router.push("/gates");
-      }
+      router.push(isEditing ? `/gates/${gate.gate_id}` : "/gates");
       router.refresh();
     });
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      {/* Location */}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="gate-location">Location</Label>
         <Input
@@ -80,9 +88,15 @@ export default function GateForm({ events, venues, gate }: Props) {
         />
       </div>
 
+      {/* Venue */}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="gate-venue">Venue</Label>
-        <Select value={venueId} onValueChange={(v) => v && setVenueId(v)} required>
+        <Select
+          value={venueId}
+          onValueChange={(v) => v && setVenueId(v)}
+          disabled={isEditing}
+          required
+        >
           <SelectTrigger id="gate-venue">
             <SelectValue placeholder="Select a venue" />
           </SelectTrigger>
@@ -94,10 +108,18 @@ export default function GateForm({ events, venues, gate }: Props) {
             ))}
           </SelectContent>
         </Select>
+        {isEditing && (
+          <p className="text-[11px] text-muted-foreground">
+            Venue cannot be changed after a gate is registered.
+          </p>
+        )}
       </div>
 
+      {/* Event assignment */}
       <div className="pt-4 border-t mt-2">
-        <h3 className="text-sm font-medium mb-4">Initial Assignment</h3>
+        <h3 className="text-sm font-medium mb-4">
+          {isEditing ? "Event Assignment" : "Initial Assignment"}
+        </h3>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="assign-event">Assign to Event</Label>
           <Select value={eventId} onValueChange={(v) => setEventId(v ?? "unassigned")}>
@@ -106,7 +128,7 @@ export default function GateForm({ events, venues, gate }: Props) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="unassigned">Unassigned</SelectItem>
-              {events.map((event) => (
+              {assignableEvents.map((event) => (
                 <SelectItem key={event.event_id} value={event.event_id}>
                   {event.name}
                 </SelectItem>
@@ -114,11 +136,13 @@ export default function GateForm({ events, venues, gate }: Props) {
             </SelectContent>
           </Select>
           <p className="text-[11px] text-muted-foreground mt-1">
-            You can also assign events later from the gates list.
+            Only scheduled or active events are shown. You can reassign from the gates list.
           </p>
         </div>
       </div>
+
       {error && <p className="text-sm text-destructive">{error}</p>}
+
       <Button type="submit" disabled={loading}>
         {loading ? "Saving…" : isEditing ? "Save Changes" : "Register Gate"}
       </Button>

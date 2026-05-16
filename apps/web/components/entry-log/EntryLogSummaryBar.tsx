@@ -35,7 +35,7 @@ export function LogSummaryBar({ summary, className }: Props) {
       {/* Grant-rate bar */}
       {total > 0 && (
         <div className="space-y-1">
-          {/* Segmented bar: granted / denied / timeout+error */}
+          {/* Segmented bar: granted / denied / timeout + error */}
           <div className="h-2 w-full rounded-full bg-muted overflow-hidden flex">
             <div
               className="h-full bg-emerald-400 transition-all duration-500"

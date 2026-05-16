@@ -12,7 +12,7 @@ export default function EventStats({ ticketSummary, logSummary, capacity }: Prop
   const stats = [
     {
       label: "Tickets Issued",
-      value: ticketSummary.total_issued,
+      value: ticketSummary.total,
       sub: `of ${capacity} capacity`,
       icon: Ticket,
       bandClass: "bg-amber-50 border-amber-100",
@@ -37,8 +37,7 @@ export default function EventStats({ ticketSummary, logSummary, capacity }: Prop
       iconClass: "text-red-500",
       labelClass: "text-red-700",
     },
-    // Show timeout/error card only when non-zero — it's operational noise
-    // when zero and alarming when non-zero.
+    // Show timeout or error card only when non-zero; it's operational noise when zero and alarming when non-zero
     ...(logSummary.timeout_or_error > 0
       ? [
           {

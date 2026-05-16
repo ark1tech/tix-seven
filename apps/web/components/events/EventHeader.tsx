@@ -118,7 +118,7 @@ export default function EventHeader({ event }: Props) {
           </p>
         </div>
 
-        {/* Action buttons — only on root, only when relevant */}
+        {/* Action buttons; only on root, only when relevant */}
         {isRoot && (
           <div className="flex flex-row items-center gap-2 shrink-0 flex-wrap justify-end">
             {isMutable && (

@@ -9,9 +9,9 @@ interface Props {
 }
 
 export function TicketSummaryBar({ summary, capacity, className }: Props) {
-  const { total_issued, total_used, total_unused } = summary;
-  const issuedPct = capacity > 0 ? Math.min((total_issued / capacity) * 100, 100) : 0;
-  const usedPct = total_issued > 0 ? Math.min((total_used / total_issued) * 100, 100) : 0;
+  const { total, used, unused } = summary;
+  const issuedPct = capacity > 0 ? Math.min((total / capacity) * 100, 100) : 0;
+  const usedPct = total > 0 ? Math.min((used / total) * 100, 100) : 0;
 
   return (
     <div className={cn("rounded-xl border bg-card px-5 py-4 flex flex-col gap-3", className)}>
@@ -22,7 +22,7 @@ export function TicketSummaryBar({ summary, capacity, className }: Props) {
           Ticket Issuance
         </div>
         <span className="text-xs text-muted-foreground tabular-nums">
-          {total_issued} / {capacity} capacity
+          {total} / {capacity} capacity
         </span>
       </div>
 
@@ -42,25 +42,25 @@ export function TicketSummaryBar({ summary, capacity, className }: Props) {
       {/* Stat pills */}
       <div className="flex items-center gap-2 flex-wrap pt-0.5">
         <StatPill
-          value={total_issued}
+          value={total}
           label="Issued"
           dotClass="bg-amber-400"
           pillClass="bg-amber-50 border-amber-100 text-amber-700"
         />
         <StatPill
-          value={total_used}
+          value={used}
           label="Used"
           dotClass="bg-emerald-400"
           pillClass="bg-emerald-50 border-emerald-100 text-emerald-700"
         />
         <StatPill
-          value={total_unused}
+          value={unused}
           label="Unused"
           dotClass="bg-zinc-300"
           pillClass="bg-zinc-50 border-zinc-200 text-zinc-600"
         />
-        {/* Entry rate — derived */}
-        {total_issued > 0 && (
+        {/* Entry rate */}
+        {total > 0 && (
           <span className="ml-auto text-xs text-muted-foreground tabular-nums">
             {usedPct.toFixed(0)}% entry rate
           </span>

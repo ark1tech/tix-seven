@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { subscribeToEntryLogs } from "@/lib/db/entry-logs-realtime";
 import {
   Table,
   TableBody,
@@ -21,9 +22,9 @@ import { cn } from "@/lib/utils";
 import { Filter, ArrowUpDown } from "lucide-react";
 import type { Log } from "@tix-seven/types";
 
-// ────────────────────────────────────────────────
+// ------------------------------------------------------------------
 // Types
-// ────────────────────────────────────────────────
+// ------------------------------------------------------------------
 
 type ResultFilter = "All" | "GRANTED" | "DENIED" | "TIMEOUT" | "ERROR";
 type SortDir = "Newest" | "Oldest";
@@ -36,9 +37,9 @@ function isSortDir(v: string): v is SortDir {
   return v === "Newest" || v === "Oldest";
 }
 
-// ────────────────────────────────────────────────
+// ------------------------------------------------------------------
 // Helpers
-// ────────────────────────────────────────────────
+// ------------------------------------------------------------------
 
 function formatDenialReasonLabel(value: string): string {
   return value
@@ -47,48 +48,45 @@ function formatDenialReasonLabel(value: string): string {
     .join(" ");
 }
 
-type ResultMeta = {
-  pill: string;
-  dot: string;
-  label: string;
-};
+type ResultMeta = { pill: string; dot: string; label: string };
 
 const RESULT_META: Record<string, ResultMeta> = {
-  GRANTED: {
-    pill: "bg-emerald-50 text-emerald-700",
-    dot: "bg-emerald-500",
-    label: "Granted",
-  },
-  DENIED: {
-    pill: "bg-red-50 text-red-700",
-    dot: "bg-red-500",
-    label: "Denied",
-  },
-  TIMEOUT: {
-    pill: "bg-amber-50 text-amber-700",
-    dot: "bg-amber-400",
-    label: "Timeout",
-  },
-  ERROR: {
-    pill: "bg-orange-50 text-orange-700",
-    dot: "bg-orange-500",
-    label: "Error",
-  },
+  GRANTED: { pill: "bg-emerald-50 text-emerald-700", dot: "bg-emerald-500", label: "Granted" },
+  DENIED:  { pill: "bg-red-50 text-red-700",         dot: "bg-red-500",     label: "Denied"  },
+  TIMEOUT: { pill: "bg-amber-50 text-amber-700",     dot: "bg-amber-400",   label: "Timeout" },
+  ERROR:   { pill: "bg-orange-50 text-orange-700",   dot: "bg-orange-500",  label: "Error"   },
 };
 
-// ────────────────────────────────────────────────
+// ------------------------------------------------------------------
 // Component
-// ────────────────────────────────────────────────
+// ------------------------------------------------------------------
 
 interface Props {
-  /** logs are passed in by the server component; no client-side realtime here */
+  eventId: string;
   initialLogs: Log[];
 }
 
-export default function EntryLogFeed({ initialLogs }: Props) {
-  const [logs] = useState<Log[]>(initialLogs);
+export default function EntryLogFeed({ eventId, initialLogs }: Props) {
+  const [logs, setLogs] = useState<Log[]>(initialLogs);
   const [filter, setFilter] = useState<ResultFilter>("All");
   const [sort, setSort] = useState<SortDir>("Newest");
+
+  // Gate-server owns the initial fetch (server component passes initialLogs).
+  // Supabase realtime owns live push after page load. Both paths coexist without conflict as they operate on different layers.
+  useEffect(() => {
+    const unsub = subscribeToEntryLogs(eventId, (newLog) => {
+      setLogs((prev) => {
+        // Both broadcast and postgres_changes can fire for the same INSERT.
+
+        // Deduplicate by log_id so the fallback path never double-renders.
+        if (prev.some((l) => l.log_id === newLog.log_id)) return prev;
+        return [newLog, ...prev];
+      });
+    });
+    return unsub;
+  }, [eventId]);
+
+  // Derived state
 
   const filteredLogs = logs.filter((log) => {
     if (filter === "All") return true;
@@ -117,17 +115,16 @@ export default function EntryLogFeed({ initialLogs }: Props) {
           Logs
         </h2>
         <div className="flex items-center gap-1.5 flex-wrap flex-1 justify-end">
-          {/* Result filter */}
           <Select
             modal={false}
             value={filter}
-            onValueChange={(v) => { if (isResultFilter(v)) setFilter(v); }}
+            onValueChange={(v) => { if (isResultFilter(v!)) setFilter(v); }}
           >
             <SelectTrigger className="h-8 px-2 text-xs border-transparent hover:bg-muted/60 transition-colors bg-transparent shadow-none w-auto gap-1.5 text-muted-foreground font-medium focus-visible:ring-0 data-open:bg-muted/80 data-open:text-foreground rounded-md">
               <Filter className="h-3.5 w-3.5 shrink-0" />
               <SelectValue />
             </SelectTrigger>
-            <SelectContent align="end" className="w-[130px] p-1">
+            <SelectContent align="end" className="w-32.5 p-1">
               <SelectItem value="All">All</SelectItem>
               <SelectItem value="GRANTED">Granted</SelectItem>
               <SelectItem value="DENIED">Denied</SelectItem>
@@ -136,17 +133,16 @@ export default function EntryLogFeed({ initialLogs }: Props) {
             </SelectContent>
           </Select>
 
-          {/* Sort */}
           <Select
             modal={false}
             value={sort}
-            onValueChange={(v) => { if (isSortDir(v)) setSort(v); }}
+            onValueChange={(v) => { if (isSortDir(v!)) setSort(v); }}
           >
             <SelectTrigger className="h-8 px-2 text-xs border-transparent hover:bg-muted/60 transition-colors bg-transparent shadow-none w-auto gap-1.5 text-muted-foreground font-medium focus-visible:ring-0 data-open:bg-muted/80 data-open:text-foreground rounded-md">
               <ArrowUpDown className="h-3.5 w-3.5 shrink-0" />
               <SelectValue />
             </SelectTrigger>
-            <SelectContent align="end" className="w-[120px] p-1">
+            <SelectContent align="end" className="w-30 p-1">
               <SelectItem value="Newest">Newest</SelectItem>
               <SelectItem value="Oldest">Oldest</SelectItem>
             </SelectContent>
@@ -159,7 +155,7 @@ export default function EntryLogFeed({ initialLogs }: Props) {
         <TableHeader>
           <TableRow>
             <TableHead className="py-2 px-3 text-xs">Time</TableHead>
-            {/* Gate column — uses gate_location_snapshot, durable after gate deletion */}
+            {/* gate_location_snapshot is durable even after the Gate row is deleted */}
             <TableHead className="py-2 px-3 text-xs">Gate</TableHead>
             <TableHead className="py-2 px-3 text-xs">Result</TableHead>
             <TableHead className="py-2 px-3 text-xs">Reason</TableHead>
@@ -183,33 +179,29 @@ export default function EntryLogFeed({ initialLogs }: Props) {
                   </time>
                 </TableCell>
 
-                {/* Gate — snapshot column, always present after _resolve_gate succeeds */}
+                {/* Gate prefers location snapshot; falls back to truncated raw_gate_id_snapshot when _resolve_gate failed before the snapshot could be written (e.g. INVALID_GATE_ID) */}
                 <TableCell className="py-2 px-3 text-xs text-muted-foreground">
                   {log.gate_location_snapshot ?? (
-                    <span className="text-muted-foreground/40 font-mono">
+                    <span className="font-mono text-muted-foreground/50">
                       {log.raw_gate_id_snapshot.slice(0, 8)}…
                     </span>
                   )}
                 </TableCell>
 
-                {/* Result pill */}
+                {/* Result */}
                 <TableCell className="py-2 px-3">
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
-                      meta.pill
-                    )}
-                  >
+                  <span className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
+                    meta.pill
+                  )}>
                     <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot)} />
                     {meta.label}
                   </span>
                 </TableCell>
 
-                {/* Denial reason */}
+                {/* Denial Reason */}
                 <TableCell className="py-2 px-3 text-sm">
-                  {log.denial_reason
-                    ? formatDenialReasonLabel(log.denial_reason)
-                    : "—"}
+                  {log.denial_reason ? formatDenialReasonLabel(log.denial_reason) : "—"}
                 </TableCell>
 
                 {/* Ticket ID */}

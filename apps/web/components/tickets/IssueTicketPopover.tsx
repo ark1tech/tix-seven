@@ -119,8 +119,7 @@ export function IssueTicketPopover({ eventId, children }: Props) {
   function onRescan() {
     setPayload("");
     setIssueFailure(null);
-    // Add a small delay to ensure the scanner is fully reset and doesn't immediately 
-    // pick up the same QR code frame.
+    // Add a small delay to ensure the scanner is fully reset and doesn't immediately pick up the same QR code frame.
     setTimeout(() => {
       setPhase("scanning");
     }, 150);
@@ -147,7 +146,7 @@ export function IssueTicketPopover({ eventId, children }: Props) {
             "data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
           )}
         >
-          <div className="min-h-[440px] flex flex-col">
+          <div className="min-h-110 flex flex-col">
             {phase === "scanning" && (
               <div className="flex-1 flex flex-col animate-in fade-in duration-200">
                 <div className="px-6 pt-6 pb-4">
@@ -170,10 +169,10 @@ export function IssueTicketPopover({ eventId, children }: Props) {
                     />
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                       <div className="relative w-[80%] h-[80%]">
-                        <span className="absolute top-0 left-0 w-10 h-10 border-t-[2px] border-l-[2px] border-white/90 rounded-tl-lg" />
-                        <span className="absolute top-0 right-0 w-10 h-10 border-t-[2px] border-r-[2px] border-white/90 rounded-tr-lg" />
-                        <span className="absolute bottom-0 left-0 w-10 h-10 border-b-[2px] border-l-[2px] border-white/90 rounded-bl-lg" />
-                        <span className="absolute bottom-0 right-0 w-10 h-10 border-b-[2px] border-r-[2px] border-white/90 rounded-br-lg" />
+                        <span className="absolute top-0 left-0 w-10 h-10 border-t-2 border-l-2 border-white/90 rounded-tl-lg" />
+                        <span className="absolute top-0 right-0 w-10 h-10 border-t-2 border-r-2 border-white/90 rounded-tr-lg" />
+                        <span className="absolute bottom-0 left-0 w-10 h-10 border-b-2 border-l-2 border-white/90 rounded-bl-lg" />
+                        <span className="absolute bottom-0 right-0 w-10 h-10 border-b-2 border-r-2 border-white/90 rounded-br-lg" />
                         <ScanLine className="absolute inset-0 m-auto h-10 w-10 text-white/50 animate-pulse" />
                       </div>
                     </div>

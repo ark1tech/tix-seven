@@ -22,16 +22,24 @@ import { cn } from "@/lib/utils";
 import type { Ticket } from "@tix-seven/types";
 import { Filter, ArrowUpDown, Copy, Check } from "lucide-react";
 
-type TicketFilter = "All" | "Active" | "Used";
+// ------------------------------------------------------------------
+// Types
+// ------------------------------------------------------------------
+
+type TicketFilter = "All" | "Unused" | "Used";
 type TicketSort = "Newest" | "Oldest";
 
 function isTicketFilter(value: string | null): value is TicketFilter {
-  return value === "All" || value === "Active" || value === "Used";
+  return value === "All" || value === "Unused" || value === "Used";
 }
 
 function isTicketSort(value: string | null): value is TicketSort {
   return value === "Newest" || value === "Oldest";
 }
+
+// ------------------------------------------------------------------
+// CopyableId
+// ------------------------------------------------------------------
 
 function CopyableId({ id, className }: { id: string | null; className?: string }) {
   const [copied, setCopied] = useState(false);
@@ -48,7 +56,7 @@ function CopyableId({ id, className }: { id: string | null; className?: string }
   if (!id) return <span className="text-muted-foreground/40 font-mono text-xs px-2">—</span>;
 
   return (
-    <div 
+    <div
       className={cn(
         "group relative flex items-center justify-between cursor-pointer w-full gap-2 transition-all duration-200 px-2 py-1.5 rounded-md border border-transparent hover:border-border/40 hover:bg-muted/30",
         className
@@ -73,35 +81,47 @@ function CopyableId({ id, className }: { id: string | null; className?: string }
   );
 }
 
-export default function TicketTable({ eventId, initialTickets }: { eventId: string, initialTickets: Ticket[] }) {
+// ------------------------------------------------------------------
+// TicketTable
+// ------------------------------------------------------------------
+
+export default function TicketTable({
+  eventId,
+  initialTickets,
+}: {
+  eventId: string;
+  initialTickets: Ticket[];
+}) {
   const [tickets, setTickets] = useState<Ticket[]>(initialTickets);
   const [filter, setFilter] = useState<TicketFilter>("All");
   const [sort, setSort] = useState<TicketSort>("Newest");
 
+  // Gate-server owns the initial fetch (server component passes initialLogs).
+  // Supabase realtime owns live push after page load. Both paths coexist without conflict as they operate on different layers.
   useEffect(() => {
     const unsub = subscribeToTickets(eventId, (updatedTicket) => {
       setTickets((prev) => {
         const index = prev.findIndex((t) => t.ticket_id === updatedTicket.ticket_id);
+
         if (index !== -1) {
-          // UPDATE path: merge fields but never clobber an existing value with
-          // null/undefined. This handles both the enriched broadcast payload
-          // (full Ticket) and the postgres_changes fallback (partial — no
-          // link_hash column on the ticket table).
           const existing = prev[index];
+
           const merged: Ticket = {
             ...existing,
             ...updatedTicket,
-            link_hash: updatedTicket.link_hash ?? existing.link_hash,
+            link_id:   updatedTicket.link_id   ?? existing.link_id,
           };
+
           const next = [...prev];
+
           next[index] = merged;
+
           return next;
         } else {
-          // INSERT path: only add if link_hash is present — the broadcast can
-          // fire before the event_ticket_link join is visible, yielding null.
-          if (!updatedTicket.link_hash) return prev;
-          // Prevent duplicates if multiple realtime paths fire
+          if (!updatedTicket.link_id) return prev;
+
           if (prev.some((t) => t.ticket_id === updatedTicket.ticket_id)) return prev;
+
           return [updatedTicket as Ticket, ...prev];
         }
       });
@@ -109,9 +129,11 @@ export default function TicketTable({ eventId, initialTickets }: { eventId: stri
     return unsub;
   }, [eventId]);
 
+  // Derived state
+
   const filteredTickets = tickets.filter((t) => {
-    if (filter === "Active") return t.status !== "USED";
-    if (filter === "Used") return t.status === "USED";
+    if (filter === "Unused") return t.status !== "USED";
+    if (filter === "Used")   return t.status === "USED";
     return true;
   });
 
@@ -123,31 +145,38 @@ export default function TicketTable({ eventId, initialTickets }: { eventId: stri
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Toolbar */}
       <div className="flex items-center justify-between">
-        <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mr-4">Ticket Registry</h2>
+        <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mr-4">
+          Ticket Registry
+        </h2>
         <div className="flex items-center gap-1.5 flex-wrap flex-1 justify-end">
-          <Select modal={false} value={filter} onValueChange={(v) => {
-            if (isTicketFilter(v)) setFilter(v);
-          }}>
+          <Select
+            modal={false}
+            value={filter}
+            onValueChange={(v) => { if (isTicketFilter(v)) setFilter(v); }}
+          >
             <SelectTrigger className="h-8 px-2 text-xs border-transparent hover:bg-muted/60 transition-colors bg-transparent shadow-none w-auto gap-1.5 text-muted-foreground font-medium focus-visible:ring-0 data-open:bg-muted/80 data-open:text-foreground rounded-md">
               <Filter className="h-3.5 w-3.5 shrink-0" />
               <SelectValue />
             </SelectTrigger>
-            <SelectContent align="end" className="w-[120px] p-1">
+            <SelectContent align="end" className="w-30 p-1">
               <SelectItem value="All">All</SelectItem>
-              <SelectItem value="Active">Active</SelectItem>
+              <SelectItem value="Unused">Unused</SelectItem>
               <SelectItem value="Used">Used</SelectItem>
             </SelectContent>
           </Select>
 
-          <Select modal={false} value={sort} onValueChange={(v) => {
-            if (isTicketSort(v)) setSort(v);
-          }}>
+          <Select
+            modal={false}
+            value={sort}
+            onValueChange={(v) => { if (isTicketSort(v)) setSort(v); }}
+          >
             <SelectTrigger className="h-8 px-2 text-xs border-transparent hover:bg-muted/60 transition-colors bg-transparent shadow-none w-auto gap-1.5 text-muted-foreground font-medium focus-visible:ring-0 data-open:bg-muted/80 data-open:text-foreground rounded-md">
               <ArrowUpDown className="h-3.5 w-3.5 shrink-0" />
               <SelectValue />
             </SelectTrigger>
-            <SelectContent align="end" className="w-[120px] p-1">
+            <SelectContent align="end" className="w-30 p-1">
               <SelectItem value="Newest">Newest</SelectItem>
               <SelectItem value="Oldest">Oldest</SelectItem>
             </SelectContent>
@@ -155,6 +184,7 @@ export default function TicketTable({ eventId, initialTickets }: { eventId: stri
         </div>
       </div>
 
+      {/* Empty state */}
       {sortedTickets.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           No tickets found matching the criteria.
@@ -164,20 +194,17 @@ export default function TicketTable({ eventId, initialTickets }: { eventId: stri
           <TableHeader>
             <TableRow className="hover:bg-transparent border-b">
               <TableHead className="py-2 px-3 text-xs w-1/5">Ticket ID</TableHead>
-              {/* <TableHead className="py-2 px-3 text-xs w-1/5">Link Hash</TableHead> */}
               <TableHead className="py-2 px-3 text-xs">Status</TableHead>
               <TableHead className="py-2 px-3 text-xs">Issued At</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedTickets.map((ticket, i) => (
+            {sortedTickets.map((ticket) => (
               <TableRow key={ticket.ticket_id} className="group transition-colors">
                 <TableCell className="py-2 px-1 w-1/5 max-w-0">
                   <CopyableId id={ticket.ticket_id} />
                 </TableCell>
-                {/* <TableCell className="py-2 px-1 w-1/5 max-w-0">
-                  <CopyableId id={ticket.link_hash} />
-                </TableCell> */}
+
                 <TableCell className="py-2 px-3">
                   <span className={cn(
                     "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
@@ -192,6 +219,7 @@ export default function TicketTable({ eventId, initialTickets }: { eventId: stri
                     {ticket.status === "USED" ? "Used" : "Unused"}
                   </span>
                 </TableCell>
+
                 <TableCell className="py-2 px-3 text-xs text-muted-foreground">
                   <time dateTime={ticket.created_at.replace(" ", "T")}>
                     {formatPhtDateTimeShort(ticket.created_at)}
