@@ -65,10 +65,10 @@ export function MockScanPopover({ eventId, children, initialGates, stubMode }: P
       }
       setPhase("idle");
     } catch (e) {
-      setError("Failed to load gates");
+      setError(`Failed to load gates: ${e}`);
       setPhase("error");
     }
-  }, [eventId, hasLoaded, phase, selectedGateId, gates.length]);
+  }, [eventId, hasLoaded, phase, selectedGateId, gates]);
 
   const resetForm = React.useCallback(() => {
     setPayload("");

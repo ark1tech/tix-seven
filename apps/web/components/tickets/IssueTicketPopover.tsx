@@ -160,7 +160,6 @@ export function IssueTicketPopover({ eventId, children }: Props) {
 
                 <div className="px-6 flex-1 flex flex-col justify-center">
                   <div className="relative rounded-lg overflow-hidden bg-black aspect-square shadow-inner">
-                    {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
                     <video
                       id="qr-scanner-video"
                       className="w-full h-full object-cover transform scale-x-[-1]"

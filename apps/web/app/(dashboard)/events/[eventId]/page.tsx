@@ -2,7 +2,6 @@ import { getEventDetail } from "@/lib/gate-server/events";
 import { getEntryLogs } from "@/lib/gate-server/entry-logs";
 import { getTickets } from "@/lib/gate-server/tickets";
 import { requireAuth } from "@/lib/auth/require-auth";
-import EventStats from "@/components/events/EventStats";
 import TicketTable from "@/components/tickets/TicketTable";
 import { notFound } from "next/navigation";
 import type { LogSummary } from "@tix-seven/types";
