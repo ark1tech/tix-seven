@@ -137,7 +137,11 @@
   .font-heading {
     @apply font-heading;
     font-variant-ligatures: none;
-    font-feature-settings: "liga" 0, "clig" 0, "calt" 0, "rlig" 0;
+    font-feature-settings:
+      "liga" 0,
+      "clig" 0,
+      "calt" 0,
+      "rlig" 0;
     letter-spacing: -0.018em;
   }
 }
@@ -157,5 +161,30 @@
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     opacity: 0.5;
+  }
+
+  .custom-scrollbar-subtle {
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(
+        in oklch,
+        var(--muted-foreground) 18%,
+        transparent
+      )
+      transparent;
+  }
+  .custom-scrollbar-subtle::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  .custom-scrollbar-subtle::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar-subtle::-webkit-scrollbar-thumb {
+    background: color-mix(in oklch, var(--muted-foreground) 18%, transparent);
+    border-radius: 10px;
+  }
+  .custom-scrollbar-subtle::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklch, var(--muted-foreground) 32%, transparent);
   }
 }
