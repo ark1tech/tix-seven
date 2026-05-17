@@ -14,15 +14,15 @@ export async function proxy(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
+            request.cookies.set(name, value),
           );
           supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, options),
           );
         },
       },
-    }
+    },
   );
 
   const {
@@ -30,8 +30,7 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isDashboardRoute =
-    pathname.startsWith("/events") || pathname.startsWith("/gates");
+  const isDashboardRoute = pathname.startsWith("/events");
 
   if (!user && isDashboardRoute) {
     const url = request.nextUrl.clone();
@@ -49,5 +48,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/events/:path*", "/gates/:path*", "/login"],
+  matcher: ["/events/:path*", "/login"],
 };
