@@ -1,4 +1,9 @@
+import type { Metadata } from "next";
 import { getEntryLogs } from "@/lib/gate-server/entry-logs";
+
+export const metadata: Metadata = {
+  title: "Entry Log",
+};
 import { requireAuth } from "@/lib/auth/require-auth";
 import EntryLogFeed from "@/components/entry-log/EntryLogFeed";
 
