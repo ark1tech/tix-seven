@@ -1,3 +1,4 @@
+import datetime
 import uuid
 
 from sqlalchemy import func, select
@@ -90,13 +91,15 @@ class EventRepository:
             for event_id, count in rows
         }
 
-    def get_assigned_gates(self, event_id: uuid.UUID) -> list[tuple[Gate, uuid.UUID]]:
+    def get_assigned_gates(
+        self, event_id: uuid.UUID
+    ) -> list[tuple[Gate, uuid.UUID, datetime.datetime]]:
         """
-        Return (Gate, assignment_id) pairs for all ACTIVE assignments on this event.
+        Return (Gate, assignment_id, assigned_at) for all ACTIVE assignments on this event.
         """
 
         stmt = (
-            select(Gate, GateAssignment.assignment_id)
+            select(Gate, GateAssignment.assignment_id, GateAssignment.assigned_at)
             .join(GateAssignment, GateAssignment.gate_id == Gate.gate_id)
             .where(
                 GateAssignment.event_id == event_id,
@@ -107,6 +110,6 @@ class EventRepository:
         rows = self.db.execute(stmt).all()
 
         return [
-            (gate, assignment_id)
-            for gate, assignment_id in rows
+            (gate, assignment_id, assigned_at)
+            for gate, assignment_id, assigned_at in rows
         ]

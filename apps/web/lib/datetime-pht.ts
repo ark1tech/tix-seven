@@ -10,8 +10,7 @@ import { z } from "zod";
 export const PHT_IANA = "Asia/Manila" as const;
 export const PHT_LOCALE = "en-PH" as const;
 
-const DT_LOCAL_MIN =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/; // YYYY-MM-DDTHH:mm (form submit)
+const DT_LOCAL_MIN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/; // YYYY-MM-DDTHH:mm (form submit)
 
 /** True if the string includes an offset or Z, so it represents an absolute instant. */
 function hasExplicitOffsetOrZ(s: string): boolean {
@@ -97,7 +96,9 @@ export function eventTimestampToDatetimeLocalValue(raw: string): string {
   if (!s) return "";
   if (hasExplicitOffsetOrZ(s)) {
     // Old ISO — show local picker = Manila wall
-    return formatInstantAsPhtSqlTimestamp(new Date(s)).replace(" ", "T").slice(0, 16);
+    return formatInstantAsPhtSqlTimestamp(new Date(s))
+      .replace(" ", "T")
+      .slice(0, 16);
   }
   const noMs = s.replace("T", " ").split(".")[0] ?? s;
   const [d, t] = noMs.split(/[ T]/);
@@ -121,11 +122,11 @@ export const phtEventTimestampZ = z
       }
       return !Number.isNaN(
         parsePhtEventTimestampToDate(
-          out.includes("T") ? out : out.replace(" ", "T")
-        ).getTime()
+          out.includes("T") ? out : out.replace(" ", "T"),
+        ).getTime(),
       );
     },
-    { message: "Invalid event timestamp" }
+    { message: "Invalid event timestamp" },
   );
 
 /**
@@ -148,7 +149,7 @@ const dtfCache = new Map<string, Intl.DateTimeFormat>();
 
 function getDtf(
   key: string,
-  init: () => Intl.DateTimeFormat
+  init: () => Intl.DateTimeFormat,
 ): Intl.DateTimeFormat {
   const hit = dtfCache.get(key);
   if (hit) return hit;
@@ -159,51 +160,74 @@ function getDtf(
 
 export function formatEventDateMediumPht(isoOrDb: string): string {
   const d = parsePhtEventTimestampToDate(isoOrDb);
-  return getDtf("med", () =>
-    new Intl.DateTimeFormat(PHT_LOCALE, {
-      timeZone: PHT_IANA,
-      dateStyle: "medium",
-    })
+  return getDtf(
+    "med",
+    () =>
+      new Intl.DateTimeFormat(PHT_LOCALE, {
+        timeZone: PHT_IANA,
+        dateStyle: "medium",
+      }),
   ).format(d);
 }
 
 export function formatEventMonthShortPht(isoOrDb: string): string {
   const d = parsePhtEventTimestampToDate(isoOrDb);
-  return getDtf("mon", () =>
-    new Intl.DateTimeFormat(PHT_LOCALE, {
-      timeZone: PHT_IANA,
-      month: "short",
-    })
+  return getDtf(
+    "mon",
+    () =>
+      new Intl.DateTimeFormat(PHT_LOCALE, {
+        timeZone: PHT_IANA,
+        month: "short",
+      }),
   ).format(d);
 }
 
 export function formatEventDayNumericPht(isoOrDb: string): string {
   const d = parsePhtEventTimestampToDate(isoOrDb);
-  return getDtf("day", () =>
-    new Intl.DateTimeFormat(PHT_LOCALE, {
-      timeZone: PHT_IANA,
-      day: "numeric",
-    })
+  return getDtf(
+    "day",
+    () =>
+      new Intl.DateTimeFormat(PHT_LOCALE, {
+        timeZone: PHT_IANA,
+        day: "numeric",
+      }),
   ).format(d);
 }
 
 export function formatPhtDateTimeShort(isoOrDb: string): string {
   const d = parsePhtEventTimestampToDate(isoOrDb);
-  return getDtf("dateTimeShort", () =>
-    new Intl.DateTimeFormat(PHT_LOCALE, {
-      timeZone: PHT_IANA,
-      dateStyle: "short",
-      timeStyle: "short",
-    })
+  return getDtf(
+    "dateTimeShort",
+    () =>
+      new Intl.DateTimeFormat(PHT_LOCALE, {
+        timeZone: PHT_IANA,
+        dateStyle: "short",
+        timeStyle: "short",
+      }),
+  ).format(d);
+}
+
+export function formatPhtDateTimeMedium(isoOrDb: string): string {
+  const d = parsePhtEventTimestampToDate(isoOrDb);
+  return getDtf(
+    "dateTimeMedium",
+    () =>
+      new Intl.DateTimeFormat(PHT_LOCALE, {
+        timeZone: PHT_IANA,
+        dateStyle: "short",
+        timeStyle: "medium",
+      }),
   ).format(d);
 }
 
 export function formatPhtTimeMedium(isoOrDb: string): string {
   const d = parsePhtEventTimestampToDate(isoOrDb);
-  return getDtf("timeMedium", () =>
-    new Intl.DateTimeFormat(PHT_LOCALE, {
-      timeZone: PHT_IANA,
-      timeStyle: "medium",
-    })
+  return getDtf(
+    "timeMedium",
+    () =>
+      new Intl.DateTimeFormat(PHT_LOCALE, {
+        timeZone: PHT_IANA,
+        timeStyle: "medium",
+      }),
   ).format(d);
 }

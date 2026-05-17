@@ -192,11 +192,12 @@ class EventService:
         fields = body.model_fields_set
 
         if "venue_id" in fields and body.venue_id is not None:
-            self._assert_no_gate_assignments(event_id)
+            if body.venue_id != event.venue_id:
+                self._assert_no_gate_assignments(event_id)
 
-            self._assert_venue_exists(body.venue_id)
+                self._assert_venue_exists(body.venue_id)
 
-            event.venue_id = body.venue_id
+                event.venue_id = body.venue_id
 
         if "name" in fields and body.name is not None:
             event.name = body.name
@@ -375,9 +376,10 @@ class EventService:
         result = [
             EventSummaryResponse(
                 event_id=event.event_id,
+                venue_id=event.venue_id,
                 name=event.name,
                 status=event.status,
-                venue_name=event.venue.name,
+                venue_name=event.venue.name if event.venue else "",
                 start_time=event.start_time,
                 end_time=event.end_time,
                 capacity=event.capacity,
@@ -418,8 +420,9 @@ class EventService:
                 location=gate.location,
                 status=gate.status,
                 assignment_id=assignment_id,
+                assigned_at=assigned_at,
             )
-            for gate, assignment_id in gates
+            for gate, assignment_id, assigned_at in gates
         ]
 
         summary = self.tickets.get_summary(event_id)

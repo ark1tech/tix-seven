@@ -241,6 +241,7 @@ class EventSummaryResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     event_id: uuid.UUID
+    venue_id: uuid.UUID
     name: str
     status: EventStatusEnum
     venue_name: str
@@ -257,6 +258,7 @@ class AssignedGate(BaseModel):
     location: str
     status: GateStatusEnum
     assignment_id: uuid.UUID  # surfaced for debug
+    assigned_at: datetime
 
 
 class EventDetailResponse(BaseModel):

@@ -1,8 +1,15 @@
 from contextlib import asynccontextmanager
 import logging
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exception_handlers import (
+    http_exception_handler,
+    request_validation_exception_handler,
+)
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import text
 
 from app.core.trace import end_trace_context, start_trace_context
@@ -42,9 +49,41 @@ app = FastAPI(
 )
 
 
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """
+    Log unexpected errors with trace correlation. HTTPException uses the default handler.
+    """
+
+    if isinstance(exc, (HTTPException, StarletteHTTPException)):
+        return await http_exception_handler(request, exc)
+
+    if isinstance(exc, RequestValidationError):
+        return await request_validation_exception_handler(request, exc)
+
+    trace_id = getattr(request.state, "trace_id", None) or request.headers.get(
+        "X-Trace-Id",
+        "-",
+    )
+
+    logger.error(
+        "unhandled exception: trace_id=%s exc_type=%s",
+        trace_id,
+        type(exc).__name__,
+        exc_info=exc,
+    )
+
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "internal_server_error"},
+        headers={"X-Trace-Id": trace_id},
+    )
+
+
 @app.middleware("http")
 async def attach_trace_id(request: Request, call_next):
     token, trace_id = start_trace_context(request.headers.get("X-Trace-Id"))
+    request.state.trace_id = trace_id
     logger.info(
         "pipeline ingress: trace_id=%s method=%s path=%s",
         trace_id,
