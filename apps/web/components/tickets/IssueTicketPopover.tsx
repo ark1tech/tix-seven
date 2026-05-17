@@ -2,11 +2,20 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, CheckCircle2, AlertCircle, Camera, ScanLine } from "lucide-react";
+import {
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  Camera,
+  ScanLine,
+} from "lucide-react";
 
 import { issueTicketAction } from "@/app/(dashboard)/events/[eventId]/actions";
 import { Button } from "@/components/ui/button";
-import { formatIssueTicketUserMessage, type IssueTicketFailure } from "@/lib/gate-server/client";
+import {
+  formatIssueTicketUserMessage,
+  type IssueTicketFailure,
+} from "@/lib/gate-server/client";
 import {
   Dialog,
   DialogHeader,
@@ -30,10 +39,15 @@ export function IssueTicketPopover({ eventId, children }: Props) {
   const [open, setOpen] = React.useState(false);
   const [phase, setPhase] = React.useState<Phase>("scanning");
   const [payload, setPayload] = React.useState("");
-  const [issueFailure, setIssueFailure] = React.useState<IssueTicketFailure | null>(null);
+  const [issueFailure, setIssueFailure] =
+    React.useState<IssueTicketFailure | null>(null);
   const [lastTicketId, setLastTicketId] = React.useState<string | null>(null);
-  const scannerRef = React.useRef<import("@/lib/qr-scanner/camera-adapter").CameraAdapter | null>(null);
-  const resetTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scannerRef = React.useRef<
+    import("@/lib/qr-scanner/camera-adapter").CameraAdapter | null
+  >(null);
+  const resetTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const isSubmitting = phase === "submitting";
 
   const stopScanner = React.useCallback(() => {
@@ -60,11 +74,13 @@ export function IssueTicketPopover({ eventId, children }: Props) {
 
       if (nextOpen) {
         resetForm();
+      } else {
+        stopScanner();
       }
 
       setOpen(nextOpen);
     },
-    [isSubmitting, resetForm]
+    [isSubmitting, resetForm, stopScanner],
   );
 
   React.useEffect(() => {
@@ -73,17 +89,23 @@ export function IssueTicketPopover({ eventId, children }: Props) {
     if (open && phase === "scanning") {
       import("@/lib/qr-scanner/camera-adapter").then(({ CameraAdapter }) => {
         if (!active) return;
-        
+
         stopScanner();
         const adapter = new CameraAdapter();
         scannerRef.current = adapter;
-        
-        adapter.start((decoded) => {
-          if (active) {
-            stopScanner();
-            onConfirm(false, decoded);
-          }
-        }).catch(() => {});
+
+        adapter
+          .start((decoded) => {
+            if (active) {
+              stopScanner();
+              onConfirm(false, decoded);
+            }
+          })
+          .catch(() => {
+            if (active) {
+              stopScanner();
+            }
+          });
       });
     }
 
@@ -143,9 +165,8 @@ export function IssueTicketPopover({ eventId, children }: Props) {
             "p-0 overflow-hidden flex flex-col max-h-[90vh]",
             "duration-200 outline-none",
             "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
-            "data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
-          )}
-        >
+            "data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          )}>
           <div className="min-h-110 flex flex-col">
             {phase === "scanning" && (
               <div className="flex-1 flex flex-col animate-in fade-in duration-200">
@@ -189,8 +210,7 @@ export function IssueTicketPopover({ eventId, children }: Props) {
                     variant="ghost"
                     size="sm"
                     onClick={() => handleOpenChange(false)}
-                    className="text-muted-foreground hover:bg-transparent"
-                  >
+                    className="text-muted-foreground hover:bg-transparent">
                     Cancel
                   </Button>
                 </div>
@@ -200,7 +220,9 @@ export function IssueTicketPopover({ eventId, children }: Props) {
             {phase === "submitting" && (
               <div className="flex-1 flex flex-col items-center justify-center py-16 px-6 animate-in fade-in zoom-in-95 duration-300">
                 <Loader2 className="h-8 w-8 animate-spin text-primary/60 mb-4" />
-                <p className="text-sm font-medium text-foreground">Issuing ticket…</p>
+                <p className="text-sm font-medium text-foreground">
+                  Issuing ticket…
+                </p>
                 <p className="text-xs text-muted-foreground mt-1 text-center">
                   Verifying identity with Philsys National ID
                 </p>
@@ -229,7 +251,8 @@ export function IssueTicketPopover({ eventId, children }: Props) {
                   <DialogHeader>
                     <DialogTitle>Issue Ticket</DialogTitle>
                     <DialogDescription>
-                      The ticket was not issued. See the specific reason below, then rescan the QR or retry.
+                      The ticket was not issued. See the specific reason below,
+                      then rescan the QR or retry.
                     </DialogDescription>
                   </DialogHeader>
                 </div>
@@ -237,8 +260,13 @@ export function IssueTicketPopover({ eventId, children }: Props) {
                 <div className="px-6 flex-1 flex flex-col">
                   {issueFailure && (
                     <div className="flex items-start gap-2.5 text-sm leading-snug text-destructive bg-destructive/5 p-3 rounded-lg border border-destructive/10 animate-in fade-in slide-in-from-top-1 duration-200 mt-3">
-                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
-                      <p className="min-w-0">{formatIssueTicketUserMessage(issueFailure)}</p>
+                      <AlertCircle
+                        className="h-4 w-4 shrink-0 mt-0.5"
+                        aria-hidden
+                      />
+                      <p className="min-w-0">
+                        {formatIssueTicketUserMessage(issueFailure)}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -249,11 +277,14 @@ export function IssueTicketPopover({ eventId, children }: Props) {
                     variant="ghost"
                     size="sm"
                     onClick={onRescan}
-                    className="text-muted-foreground hover:bg-transparent"
-                  >
+                    className="text-muted-foreground hover:bg-transparent">
                     Rescan
                   </Button>
-                  <Button type="button" size="sm" onClick={() => onConfirm()} className="shadow-xs">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => onConfirm()}
+                    className="shadow-xs">
                     Retry
                   </Button>
                 </div>
