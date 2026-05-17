@@ -15,7 +15,7 @@ export default function CreateEventCard({ className }: { className?: string }) {
         </div>
         <div className="flex flex-col items-center gap-1 text-center px-4">
           <span className="text-sm font-semibold tracking-tight text-foreground/70 group-hover:text-foreground transition-colors duration-300">
-            Create New Event
+            Create Event
           </span>
           <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-37.5">
             Schedule a new event and start selling tickets
