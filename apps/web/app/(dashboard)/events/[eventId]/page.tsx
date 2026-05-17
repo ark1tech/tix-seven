@@ -2,7 +2,7 @@ import { getEventDetail } from "@/lib/gate-server/events";
 import { getEntryLogs } from "@/lib/gate-server/entry-logs";
 import { getTickets } from "@/lib/gate-server/tickets";
 import { requireAuth } from "@/lib/auth/require-auth";
-import TicketTable from "@/components/tickets/TicketTable";
+import { EventRegistrySection } from "@/components/events/EventRegistrySection";
 import { notFound } from "next/navigation";
 import type { LogSummary } from "@tix-seven/types";
 import { EventOverviewCard } from "@/components/events/EventOverviewCard";
@@ -33,8 +33,12 @@ export default async function EventDetailPage({
   if (!detailResult.ok) notFound();
 
   const event = detailResult.event;
-  const logSummary = logsResult.ok ? logsResult.data.summary : EMPTY_LOG_SUMMARY;
+  const logSummary = logsResult.ok
+    ? logsResult.data.summary
+    : EMPTY_LOG_SUMMARY;
   const tickets = ticketsResult.ok ? ticketsResult.data.tickets : [];
+
+  const isMutable = event.status === "SCHEDULED" || event.status === "ACTIVE";
 
   return (
     <div className="flex flex-col gap-8">
@@ -44,7 +48,13 @@ export default async function EventDetailPage({
         capacity={event.capacity}
       />
 
-      <TicketTable eventId={eventId} initialTickets={tickets} />
+      <EventRegistrySection
+        eventId={eventId}
+        venueId={event.venue_id}
+        isMutable={isMutable}
+        initialTickets={tickets}
+        initialGates={event.assigned_gates}
+      />
     </div>
   );
 }

@@ -29,16 +29,15 @@ export function EventOverviewCard({
   className,
 }: Props) {
   return (
-    <Card className={cn("overflow-hidden", className)}>
-      <CardContent className="grid gap-5 px-5 pb-5 lg:grid-cols-[1fr_1fr]">
+    <div className={cn("overflow-hidden", className)}>
+      <CardContent className="grid gap-5 lg:grid-cols-[1fr_1fr] px-0">
         <TicketCompactAnalytics
           summary={ticketSummary}
           capacity={capacity}
         />
-
         <GateCompactAnalytics summary={logSummary} />
       </CardContent>
-    </Card>
+    </div>
   );
 }
 
@@ -63,7 +62,7 @@ function TicketCompactAnalytics({
     safeCapacity > 0 ? Math.min((total / safeCapacity) * 100, 100) : 0;
 
   return (
-    <section className="rounded-xl bg-linear-to-br from-amber-500/10 via-background to-background p-4">
+    <section className="rounded-xl bg-linear-to-br from-amber-500/10 via-background to-background p-7 border border-amber-100">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
           <div className="rounded-lg bg-amber-500/10 p-2 text-amber-600">
@@ -114,7 +113,7 @@ function GateCompactAnalytics({ summary }: { summary: LogSummary }) {
   const hasIssues = denied > 0 || timeout_or_error > 0;
 
   return (
-    <section className="rounded-xl bg-linear-to-br from-violet-500/10 via-background to-background p-4">
+    <section className="rounded-xl bg-linear-to-br from-violet-500/10 via-background to-background p-7 border border-violet-100">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
           <div className="rounded-lg bg-violet-500/10 p-2 text-violet-600">
