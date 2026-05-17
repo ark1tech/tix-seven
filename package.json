@@ -1,0 +1,9 @@
+{
+  "name": "tix-seven-root",
+  "private": true,
+  "scripts": {
+    "dev:web": "pnpm -C apps/web dev",
+    "dev:server": "cd apps/gate-server && .venv/bin/python -m uvicorn app.main:app --reload",
+    "dev": "npx -y concurrently -n \"web,server\" -c \"cyan,magenta\" \"pnpm dev:web\" \"pnpm dev:server\""
+  }
+}
