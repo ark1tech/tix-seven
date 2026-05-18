@@ -33,6 +33,7 @@ import {
   matchesRegistrySearch,
   RegistryTableSearch,
 } from "@/components/events/RegistryTableSearch";
+import GateFlowChart from "@/components/entry-log/GateFlowChart";
 import type { Log } from "@tix-seven/types";
 
 // ------------------------------------------------------------------
@@ -162,6 +163,8 @@ export default function EntryLogFeed({ eventId, initialLogs }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
+      <GateFlowChart logs={logs} />
+
       {/* Toolbar */}
       <div className="flex items-center justify-between">
         <RegistryChipTabs

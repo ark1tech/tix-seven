@@ -16,7 +16,7 @@ export const ENTRY_LOG_TABS: ChipTab[] = [{ id: "logs", label: "Logs" }];
 const CHIP_ACTIVE = "bg-muted text-foreground";
 const CHIP_INACTIVE = "text-muted-foreground hover:text-foreground";
 const CHIP_BASE =
-  "rounded-full px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+  "rounded-full px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 
 export function RegistryChipTabs<T extends string>({
   tabs,
@@ -53,7 +53,7 @@ export function RegistryChipTabs<T extends string>({
               key={tab.id}
               role="tab"
               aria-selected={true}
-              className={chipClassName}>
+              className={cn(chipClassName, "cursor-default")}>
               {tab.label}
             </span>
           );
