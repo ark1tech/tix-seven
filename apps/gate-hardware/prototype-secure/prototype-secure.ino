@@ -47,8 +47,7 @@
   #define GATE_SERVO_PIN D9 // Connect to the Servo's signal (usually yellow/orange) wire
   #define SCANNER_RX_PIN D5 // Connected to Scanner TXD (Pin 5)
   #define SCANNER_TX_PIN D6 // Connected to Scanner RXD (Pin 4)
-  #define US_ECHO_PIN D11 // Connected to Ultrasonic ECHO (Pin 11)
-  #define US_TRIG_PIN D10 // Connected to Ultrasonic TRIG (Pin 10)
+  #define LDR_PIN A0
   SoftwareSerial scannerSerial(SCANNER_RX_PIN, SCANNER_TX_PIN);
 
   // Variables to prevent spamming the server
@@ -59,28 +58,6 @@
   const int GATE_CLOSED_ANGLE = 180;
   const int GATE_OPEN_ANGLE = 0;
   Servo gateServo;
-  int measureDistance() {
-    // 1. Clear the trigger pin
-    digitalWrite(US_TRIG_PIN, LOW);
-    delayMicroseconds(2);
-
-    // 2. Send the 10-microsecond pulse
-    digitalWrite(US_TRIG_PIN, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(US_TRIG_PIN, LOW);
-
-    // 3. Read the echo pin with a 30-millisecond timeout to prevent freezing
-    long duration = pulseIn(US_ECHO_PIN, HIGH, 30000);
-
-    // If duration is 0, it means the sound wave was lost or out of range.
-    // We return a large number (999) so the system knows the sensor is "clear".
-    if (duration == 0) {
-      return 0; 
-    }
-    // 4. Calculate and return the distance
-    Serial.println(duration * 0.034 / 2);
-    return duration * 0.034 / 2;
-}
   void setup() {
     Serial.begin(115200);
     delay(5000);
@@ -89,8 +66,6 @@
 
     pinMode(GREEN_LED_PIN, OUTPUT);
     pinMode(RED_LED_PIN, OUTPUT);
-    pinMode(US_TRIG_PIN, OUTPUT);
-    pinMode(US_ECHO_PIN, INPUT);
     digitalWrite(GREEN_LED_PIN, LOW);
     digitalWrite(RED_LED_PIN, LOW);
 
@@ -235,15 +210,16 @@
           delay(200);
 
           gateServo.write(GATE_OPEN_ANGLE);
-          
-          while(measureDistance() > 30 && measureDistance() < 80){
+          Serial.println(analogRead(LDR_PIN));
+          while(analogRead(LDR_PIN) >= 900){
+            Serial.println(analogRead(LDR_PIN));
             delay(100);
           }
-          Serial.println("Found something!");
-          while(measureDistance() <= 50 || measureDistance() >= 90){
+          while(analogRead(LDR_PIN) <= 800){
+            Serial.println(analogRead(LDR_PIN));
             delay(100);
           }
-          delay(2000);
+          delay(3000);
           gateServo.write(GATE_CLOSED_ANGLE);
           digitalWrite(GREEN_LED_PIN, LOW);
         } else if (result == "deny") {
