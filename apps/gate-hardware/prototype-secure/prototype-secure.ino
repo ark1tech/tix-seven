@@ -57,6 +57,7 @@
   // Define Servo Angles
   const int GATE_CLOSED_ANGLE = 180;
   const int GATE_OPEN_ANGLE = 0;
+  float AMBIENT_READING = 0.0;
   Servo gateServo;
   void setup() {
     Serial.begin(115200);
@@ -92,8 +93,28 @@
       Serial.print(".");
     }
     Serial.println(" OK");
-
+    for(int i = 0; i < 10; i++){
+      AMBIENT_READING += analogRead(LDR_PIN);
+      delay(100);
+    }
+    AMBIENT_READING = AMBIENT_READING / 10.0;
     Serial.println("System Ready. Waiting for QR codes in Continuous Mode...");
+    digitalWrite(GREEN_LED_PIN, HIGH);
+    delay(200);
+    digitalWrite(GREEN_LED_PIN, LOW);
+    delay(200);
+    digitalWrite(GREEN_LED_PIN, HIGH);
+    delay(200);
+    digitalWrite(GREEN_LED_PIN, LOW);
+    delay(200);
+    digitalWrite(GREEN_LED_PIN, HIGH);
+    delay(200);
+    digitalWrite(GREEN_LED_PIN, LOW);
+    delay(200);
+    digitalWrite(GREEN_LED_PIN, HIGH);
+    delay(200);
+    digitalWrite(GREEN_LED_PIN, LOW);
+    Serial.println(AMBIENT_READING);
   }
 
   void loop() {
@@ -207,18 +228,7 @@
         if (result == "grant") {
           Serial.println("ACCESS GRANTED! (Opening gate...)");
           digitalWrite(GREEN_LED_PIN, HIGH);
-          delay(200);
-
-          gateServo.write(GATE_OPEN_ANGLE);
-          Serial.println(analogRead(LDR_PIN));
-          while(analogRead(LDR_PIN) >= 900){
-            Serial.println(analogRead(LDR_PIN));
-            delay(100);
-          }
-          while(analogRead(LDR_PIN) <= 800){
-            Serial.println(analogRead(LDR_PIN));
-            delay(100);
-          }
+/
           delay(3000);
           gateServo.write(GATE_CLOSED_ANGLE);
           digitalWrite(GREEN_LED_PIN, LOW);
